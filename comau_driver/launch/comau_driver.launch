@@ -1,0 +1,38 @@
+<!--
+  Manipulator generic version of comau_driver.
+  It is strongly suggeste to launch comau_ns16hand_driver.launch or comau_nj220hand_driver.launch or other specific robot launch files
+
+  Defaults provided:
+
+   - only_monitoring = false
+
+  Usage:
+    comau_driver.launch robot_ip:=<value> joint_names_config_file:=<value> [only_monitoring:=<true|false>]
+    
+    - robot_ip is the address of the robot controller (check ping before)
+    - joint_names_config_file: yaml file with the joint names (check that the names list is equivalent to the set in the URDF)
+    - only_monitoring: if true, the driver allow just the monitoring of the robot data
+-->
+<launch>
+  
+  <!-- robot_ip: IP-address of the robot's socket-messaging server -->
+  <arg name="robot_ip" />
+  <!-- yaml config file: names of the Joints controlled by the comau_driver -->
+  <arg name="joint_names_config_file" />
+  
+  <!-- nodes configuration: monitoring variable -->
+  <arg name="only_monitoring" default="false" />
+  
+  <!-- copy the specified arguments to the Parameter Server, for use by nodes below -->
+  <param    name="robot_ip_address" type="str" value="$(arg robot_ip)"/>
+  <rosparam command="load" file="$(arg joint_names_config_file)" />
+  
+  <group unless="$(arg only_monitoring)">
+    <node pkg="comau_driver" type="comau_joint_streamer_node"           name="joint_streamer_node" output="screen"/>
+    <node pkg="comau_driver" type="comau_joint_trajectory_action_node"  name="comau_joint_trajectory_action" output="screen"/>
+  </group>
+  
+  <node pkg="comau_driver" type="motion_feedback_node" name="motion_feedback_node" output="screen"/>
+  
+</launch>
+

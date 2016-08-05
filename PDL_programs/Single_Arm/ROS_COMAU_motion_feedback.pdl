@@ -1,0 +1,203 @@
+PROGRAM ROS_COMAU_motion_feedback NOHOLD
+  -------------------------------------------------------------------------------
+  -- Alberto Marini
+  -- alberto.marini@itia.cnr.it
+  -------------------------------------------------------------------------------
+  -- Brief:
+  --    Motion feedback over TCP/IP communication
+  -------------------------------------------------------------------------------
+  
+TYPE
+	ROS_message_header = RECORD 
+		length : INTEGER								-- Length of the message (header + data) in bytes
+		msg_type : INTEGER								-- INVALID=0; PING=1; ....
+		comm_type : INTEGER								-- INVALID=0; TOPIC=1; SERVICE_REQUEST=2; SERVICE_REPLY=3;
+		reply_code : INTEGER								-- INVALID=0; SUCCESS=1; FAILURE=2;
+	ENDRECORD
+	
+	ROS_comau_motion_feedback_msg = RECORD
+		length : INTEGER								-- Length of the message (header + data) in bytes
+		msg_type : INTEGER								-- INVALID=0; PING=1; ....
+		comm_type : INTEGER								-- INVALID=0; TOPIC=1; SERVICE_REQUEST=2; SERVICE_REPLY=3;
+		reply_code : INTEGER								-- INVALID=0; SUCCESS=1; FAILURE=2;
+		arm_number : INTEGER
+		base_frame : ARRAY[6] OF REAL
+		user_frame : ARRAY[6] OF REAL
+		tool_frame : ARRAY[6] OF REAL
+		joint_positions: ARRAY[10] OF REAL
+		joint_motor_currents: ARRAY[10] OF REAL
+		cartesian_positions: ARRAY[6] OF REAL
+		last_point_processed : INTEGER
+		cntrl_time : INTEGER
+		rob_is_moving : INTEGER
+	ENDRECORD
+	
+	
+
+CONST
+  -- DV_TCP_GET = 27           -- documentazione comau
+  -- DV_TCP_ACCEPT = 29        -- documentazione comau (open a server)
+  -- DV_TCP_CONNECT = 30       -- documentazione comau (open a client)
+  -- DV_TCP_DISCONNECT = 31    -- documentazione comau
+	
+	PORT_TRJ = 1213
+	VERBOSE = 0
+	
+  
+VAR
+	lun_tcp_mf : INTEGER
+	shutdown : BOOLEAN EXPORTED FROM ROS_COMAU_trajectory
+	execution_point : INTEGER EXPORTED FROM ROS_COMAU_motion
+	tmp_msg : ROS_comau_motion_feedback_msg
+	msg_length : INTEGER
+	i : INTEGER
+	comm_success : BOOLEAN
+	timer_idx : INTEGER EXPORTED FROM ROS_COMAU_motion_feedback
+	is_moving : BOOLEAN EXPORTED FROM ROS_COMAU_motion
+	
+ROUTINE feedback_encode 		-- EXPORTED FROM ROS_COMAU_motion_feedback
+ROUTINE feedback_decode : BOOLEAN 	-- EXPORTED FROM ROS_COMAU_motion_feedback
+
+ROUTINE ru_get(vi_netlun, vi_scrlun, verbose : INTEGER) EXPORTED FROM ROS_COMAU_tcp_utils
+ROUTINE tcp_accept(port, vi_netlun, vi_scrlun, verbose : INTEGER) EXPORTED FROM ROS_COMAU_tcp_utils
+
+ROUTINE feedback_encode
+VAR
+	str : STRING[33]
+	jntp_1 : JOINTPOS FOR ARM[1]
+	cpos : POSITION
+	i : INTEGER
+BEGIN
+	tmp_msg.length := 204    -- Bytes
+	tmp_msg.msg_type := 3004   -- MOTION_FEEDBACK=3004
+	tmp_msg.comm_type := 2     -- SERVICE_REQUEST=2
+	tmp_msg.reply_code := 0 		-- INVALID=0; SUCCESS=1; FAILURE=2;
+	tmp_msg.arm_number := 1   --$PROG_ARM
+	POS_XTRT($BASE, tmp_msg.base_frame[1], tmp_msg.base_frame[2], tmp_msg.base_frame[3], tmp_msg.base_frame[4], tmp_msg.base_frame[5], tmp_msg.base_frame[6], str)
+	POS_XTRT($UFRAME, tmp_msg.user_frame[1], tmp_msg.user_frame[2], tmp_msg.user_frame[3], tmp_msg.user_frame[4], tmp_msg.user_frame[5], tmp_msg.user_frame[6], str)
+	POS_XTRT($TOOL, tmp_msg.tool_frame[1], tmp_msg.tool_frame[2], tmp_msg.tool_frame[3], tmp_msg.tool_frame[4], tmp_msg.tool_frame[5], tmp_msg.tool_frame[6], str)
+	jntp_1 := ARM_JNTP
+	FOR i:=1 TO $NUM_JNT_AXES DO
+		tmp_msg.joint_positions[i] := jntp_1[i]
+		tmp_msg.joint_motor_currents[i] := $CRNT_DATA[1].MTR_CURR[i]
+	ENDFOR
+	IF $NUM_JNT_AXES<10 THEN
+		FOR i:=($NUM_JNT_AXES+1) TO 10 DO
+			tmp_msg.joint_positions[i] := 0.0
+			tmp_msg.joint_motor_currents[i] := 0.0
+		ENDFOR
+	ENDIF
+--WRITE LUN_CRT (NL, 'curr: ', $CRNT_DATA[1].MTR_CURR[3] , NL)
+	cpos := ARM_POS
+	POS_XTRT(cpos, tmp_msg.cartesian_positions[1], tmp_msg.cartesian_positions[2], tmp_msg.cartesian_positions[3], tmp_msg.cartesian_positions[4], tmp_msg.cartesian_positions[5], tmp_msg.cartesian_positions[6], str)
+	tmp_msg.last_point_processed := execution_point
+	tmp_msg.cntrl_time := $TIMER[timer_idx]
+	IF (is_moving=TRUE) THEN     ---------------------------------
+		tmp_msg.rob_is_moving := 1
+	ELSE
+		tmp_msg.rob_is_moving := 0
+	ENDIF
+	
+END feedback_encode
+
+ROUTINE feedback_decode : BOOLEAN
+VAR
+	i : INTEGER
+	int_field : INTEGER
+	real_field : REAL
+	header : ROS_message_header
+BEGIN
+	READ lun_tcp_mf(header.length::4, header.msg_type::4, header.comm_type::4, header.reply_code::4, int_field::4)
+	FOR i:=1 TO 44 DO       -- 6 base_frame, user_frame, tool_frame, cartesian_positions + 10 joint_positions + 10 joint_motor_currents
+		READ lun_tcp_mf(real_field::4)
+	ENDFOR
+	READ lun_tcp_mf(int_field::4)    --last_point_processed
+	READ lun_tcp_mf(int_field::4)    --time
+	READ lun_tcp_mf(int_field::4)    --rob_is_moving
+	
+	IF header.reply_code=1 THEN
+		RETURN (TRUE)
+	ELSE
+		RETURN (FALSE)
+	ENDIF
+END feedback_decode
+	
+
+--------------
+---- MAIN ----
+--------------	
+	
+BEGIN
+	-- DIR_SET('UD:\\UNIBS\\Marini\\Driver');   -- Set working directory
+	-- SYS_CALL('ML' ,'ROS_COMAU_tcp_utils');        -- Memory Load
+
+	comm_success := TRUE
+	timer_idx := 1
+	$TIMER[timer_idx] := 0
+
+	execution_point := 0
+	IF VAR_UNINIT(is_moving) THEN
+    	  WRITE LUN_CRT (NL, 'Inizializzo variabile is_moving := FALSE', NL)
+    	  is_moving := FALSE	
+	ENDIF
+	IF VAR_UNINIT(shutdown) THEN
+    	  WRITE LUN_CRT (NL, 'Inizializzo variabile shutdown := FALSE', NL)
+    	  shutdown := FALSE	
+	ENDIF
+
+	WRITE LUN_CRT (NL, 'Starting motion feedback...', NL)
+	
+	WRITE LUN_CRT (NL, '[ROS_COMAU_motion_feedback] Connection starting...', NL)
+	OPEN FILE lun_tcp_mf ('NETT:', 'rw'),
+		WITH $FL_BINARY = TRUE, 
+	ENDOPEN
+	tcp_accept (PORT_TRJ, lun_tcp_mf, LUN_CRT, VERBOSE)     --------------------------
+	-- tcp_accept ( 1213, lun_tcp_mf, -1, VERBOSE)
+	
+	WRITE LUN_CRT (NL,'Starting cycle...',NL)
+	REPEAT
+		IF VERBOSE=1 THEN
+			ru_get((lun_tcp_mf), LUN_CRT, VERBOSE)       --------------------------------
+		ENDIF
+		
+		feedback_encode
+		
+		WRITE lun_tcp_mf(tmp_msg.length, tmp_msg.msg_type, tmp_msg.comm_type, tmp_msg.reply_code, tmp_msg.arm_number)
+		FOR i:=1 TO 6 DO
+		  WRITE lun_tcp_mf(tmp_msg.base_frame[i])
+		ENDFOR
+		FOR i:=1 TO 6 DO
+		  WRITE lun_tcp_mf(tmp_msg.user_frame[i])
+		ENDFOR
+		FOR i:=1 TO 6 DO
+		  WRITE lun_tcp_mf(tmp_msg.tool_frame[i])
+		ENDFOR
+		FOR i:=1 TO 10 DO
+		  WRITE lun_tcp_mf(tmp_msg.joint_positions[i])
+		ENDFOR
+		FOR i:=1 TO 10 DO
+      		  WRITE lun_tcp_mf(tmp_msg.joint_motor_currents[i])
+    		ENDFOR
+		FOR i:=1 TO 6 DO
+		  WRITE lun_tcp_mf(tmp_msg.cartesian_positions[i])
+		ENDFOR
+		WRITE lun_tcp_mf(tmp_msg.last_point_processed, tmp_msg.cntrl_time, tmp_msg.rob_is_moving)
+		
+		DELAY 10
+		
+		comm_success := feedback_decode
+		IF comm_success=FALSE THEN
+			WRITE LUN_CRT('[ROS_COMAU_motion_feedback]  Data failure!', NL)
+			--BREAK
+		ENDIF
+		
+		DELAY 10
+		
+	UNTIL shutdown
+	
+	DV_CNTRL(31, (lun_tcp_mf))
+	DELAY 1000
+	CLOSE FILE lun_tcp_mf
+	WRITE LUN_CRT('[ROS_COMAU_motion_feedback]  Connection closed.', NL)
+	
+END ROS_COMAU_motion_feedback 

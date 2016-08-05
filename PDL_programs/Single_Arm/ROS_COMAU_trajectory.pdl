@@ -1,0 +1,477 @@
+PROGRAM ROS_COMAU_trajectory NOHOLD, DETACH
+  -------------------------------------------------------------------------------
+  -- Alberto Marini
+  -- alberto.marini@itia.cnr.it
+  -------------------------------------------------------------------------------
+  -- Brief:
+  --    ** Message handling
+  --    ** Path construction
+  -------------------------------------------------------------------------------
+  
+TYPE
+  pt_arm1 = NODEDEF
+		$MAIN_JNTP FOR ARM[1]
+		$LIN_SPD
+		digital_out : INTEGER
+		sequence_num : INTEGER
+	ENDNODEDEF  
+	
+	ROS_message_header = RECORD --EXPORTED FROM ROS_COMAU_trajectory
+		length : INTEGER												-- Length of the message (header + data) in bytes
+		msg_type : INTEGER											-- INVALID=0; PING=1; ....
+		comm_type : INTEGER											-- INVALID=0; TOPIC=1; SERVICE_REQUEST=2; SERVICE_REPLY=3;
+		reply_code : INTEGER										-- INVALID=0; SUCCESS=1; FAILURE=2;
+	ENDRECORD
+	
+	ROS_comau_joint_trj_pnt = RECORD
+	  length : INTEGER												-- Length of the message (header + data) in bytes
+		msg_type : INTEGER											-- INVALID=0; PING=1; ....
+		comm_type : INTEGER											-- INVALID=0; TOPIC=1; SERVICE_REQUEST=2; SERVICE_REPLY=3;
+		reply_code : INTEGER										-- INVALID=0; SUCCESS=1; FAILURE=2;
+		arm_number : INTEGER										-- INVALID=0; ARM_1=1; ARM_2=2; ARM_1e2=12;
+		queue_status : INTEGER									-- INVALID=0; READY=1; BUSY=2; ERROR=3;
+		sequence_number : INTEGER								-- Sequence number of the point in the trajectory
+		digital_output : INTEGER								-- Integer representation of the binary array of digital outputs (DOUT[0] is the LSB)
+		linear_vel : REAL												-- $LIN_SPD (in m/s) 
+		joint_positions: ARRAY[10] OF REAL      -- Joint positions (in deg). 
+	ENDRECORD
+	
+
+CONST
+  -- DV_TCP_GET = 27           -- documentazione comau
+  -- DV_TCP_ACCEPT = 29        -- documentazione comau (open a server)
+  -- DV_TCP_CONNECT = 30       -- documentazione comau (open a client)
+  -- DV_TCP_DISCONNECT = 31    -- documentazione comau
+	
+	PORT_TRJ = 1212
+	MAX_QUEUE_LENGTH = 200    --da cambiare anche in motion!!!
+	VERBOSE = 0
+  
+VAR
+	traj_arm1 : PATH OF pt_arm1 EXPORTED FROM ROS_COMAU_trajectory
+	
+	idx_queue1 : INTEGER EXPORTED FROM ROS_COMAU_trajectory
+	idx_motion1 : INTEGER EXPORTED FROM ROS_COMAU_motion
+	sem_queue : SEMAPHORE EXPORTED FROM ROS_COMAU_trajectory NOSAVE
+	is_moving : BOOLEAN EXPORTED FROM ROS_COMAU_motion
+	move_rob : BOOLEAN EXPORTED FROM ROS_COMAU_motion
+	new_trj : BOOLEAN EXPORTED FROM ROS_COMAU_trajectory
+	
+	lun_tcp_trj : INTEGER
+	shutdown : BOOLEAN EXPORTED FROM ROS_COMAU_trajectory
+	trj_complete : BOOLEAN EXPORTED FROM ROS_COMAU_trajectory
+	rcv_msg : STRING[200]
+	res_msg : STRING[200]
+	tmp_trj_pnt : ROS_comau_joint_trj_pnt
+	busy_queue : BOOLEAN
+	override_trj : BOOLEAN
+	rtn : INTEGER
+	msg_length : INTEGER
+	i : INTEGER
+	
+	res : ROS_comau_joint_trj_pnt  -- debug
+	
+	
+ROUTINE ru_get(vi_netlun, vi_scrlun, verbose : INTEGER) EXPORTED FROM ROS_COMAU_tcp_utils
+ROUTINE tcp_accept(port, vi_netlun, vi_scrlun, verbose : INTEGER) EXPORTED FROM ROS_COMAU_tcp_utils
+ROUTINE simple_msg_decode : INTEGER EXPORTED FROM ROS_COMAU_trajectory
+ROUTINE comau_joint_trj_pnt_decode(header : ROS_message_header) : INTEGER EXPORTED FROM ROS_COMAU_trajectory
+ROUTINE add_point_to_trj(pt : ROS_comau_joint_trj_pnt) EXPORTED FROM ROS_COMAU_trajectory
+ROUTINE comau_joint_trj_pnt_res_encode(pt : ROS_comau_joint_trj_pnt; check : INTEGER) EXPORTED FROM ROS_COMAU_trajectory   -- (check : INTEGER)
+ROUTINE generic_reply_msg_encode(header : ROS_message_header; is_valid : BOOLEAN) EXPORTED FROM ROS_COMAU_trajectory    --(length, msg_type, comm_type : INTEGER) 
+ROUTINE generic_msg_decode(header : ROS_message_header; is_valid : BOOLEAN) EXPORTED FROM ROS_COMAU_trajectory
+ROUTINE stop_motion EXPORTED FROM ROS_COMAU_motion
+ROUTINE start_motion EXPORTED FROM ROS_COMAU_motion
+ROUTINE cancel_motion EXPORTED FROM ROS_COMAU_motion
+
+
+	
+ROUTINE simple_msg_decode : INTEGER
+VAR
+	tmp_header : ROS_message_header
+	check : INTEGER
+BEGIN
+	check := 0
+	tmp_header.length := msg_length
+
+  READ lun_tcp_trj(tmp_header.msg_type::4, tmp_header.comm_type::4, tmp_header.reply_code::4)
+	--WRITE LUN_CRT (NL, 'Message received.', NL)
+	--WRITE LUN_CRT ('Header_length: ',tmp_header.length, NL)
+	--WRITE LUN_CRT ('Msg_type: ',tmp_header.msg_type, NL)
+	--WRITE LUN_CRT ('Comm_type: ',tmp_header.comm_type, NL)
+	--WRITE LUN_CRT ('Reply_code: ',tmp_header.reply_code, NL)
+	SELECT tmp_header.msg_type OF
+		CASE (0):
+			-- messaggio non valido
+			WRITE LUN_TP (NL, '[ROS_COMAU_trajectory / simple_msg_decode()] Invalid message.', NL)
+			WRITE LUN_CRT (NL, '[ROS_COMAU_trajectory / simple_msg_decode()] Invalid message.', NL)
+			generic_msg_decode( (tmp_header), FALSE )
+		CASE (1):
+			-- gestione ping (rispondo con success; arm_number; queue_status; sequence_number;)
+			generic_msg_decode( (tmp_header), TRUE )
+		CASE (3001):
+			check := comau_joint_trj_pnt_decode( (tmp_header) )
+		CASE (3002):
+			trj_complete := TRUE
+			WRITE LUN_CRT (NL, 'Trajectory sending finished.', NL)
+			generic_msg_decode( (tmp_header), TRUE )
+		CASE (3010):
+			-- check := start_motion_decode(rec_msg)
+			IF (is_moving=TRUE) THEN
+				WRITE LUN_CRT (NL, 'Start command ignored. The robot is already moving!', NL)
+				generic_msg_decode( (tmp_header), FALSE )
+			ELSE
+				IF (PATH_LEN(traj_arm1)>0) THEN
+					start_motion
+					WRITE LUN_CRT (NL, 'Executing trajectory....', NL)
+					generic_msg_decode( (tmp_header), TRUE )
+				ELSE
+					WRITE LUN_CRT (NL, 'Start command ignored. The trajectory is empty!', NL)
+					generic_msg_decode( (tmp_header), FALSE )
+				ENDIF
+			ENDIF
+		CASE (3011):
+			-- check := stop_motion_decode(rec_msg)
+			IF (is_moving=TRUE) THEN
+				stop_motion          
+				WRITE LUN_CRT (NL, 'Stop Motion.', NL)
+				generic_msg_decode( (tmp_header), TRUE )
+			ELSE
+				WRITE LUN_CRT (NL, 'Stop command ignored. The robot is not moving!', NL)
+				generic_msg_decode( (tmp_header), FALSE )
+			ENDIF
+		CASE (3012):
+			-- cancel_motion
+			IF (is_moving=TRUE) THEN
+				cancel_motion    
+				WRITE LUN_CRT (NL, 'Cancel Motion.', NL)
+				generic_msg_decode( (tmp_header), TRUE )
+			
+				DELAY 1000	
+				WAIT sem_queue --				
+			
+				idx_queue1 := 0
+				idx_motion1 := 1
+				NODE_DEL(traj_arm1, 1, PATH_LEN(traj_arm1) )
+				trj_complete := TRUE
+				override_trj := FALSE	
+				SIGNAL sem_queue --
+			ELSE
+				WRITE LUN_CRT (NL, 'Cancel motion command ignored. The robot is not moving!', NL)
+				generic_msg_decode( (tmp_header), FALSE )
+			ENDIF
+		CASE (3020):
+			shutdown := TRUE
+			generic_msg_decode( (tmp_header), TRUE )
+		ELSE:
+			check := 0
+			generic_msg_decode( (tmp_header), FALSE )
+			-- messaggio errore; tipo messaggio non valido 
+			WRITE LUN_TP (NL, '[ROS_COMAU_trajectory / simple_msg_decode()] Invalid msg_type value.', NL)
+			WRITE LUN_CRT (NL, '[ROS_COMAU_trajectory / simple_msg_decode()] Invalid msg_type value.', NL)
+	ENDSELECT
+	
+	RETURN (check)
+END simple_msg_decode
+
+ROUTINE comau_joint_trj_pnt_decode(header : ROS_message_header) : INTEGER
+VAR
+	pnt : ROS_comau_joint_trj_pnt
+	check : INTEGER
+	tmp_str : STRING[120]
+	i : INTEGER
+	
+BEGIN
+	check := 0
+	pnt.length := header.length
+	pnt.msg_type := header.msg_type
+	pnt.comm_type := header.comm_type
+	pnt.reply_code := header.reply_code
+
+  READ lun_tcp_trj(pnt.arm_number::4, pnt.queue_status::4, pnt.sequence_number::4, pnt.linear_vel::4)
+  --WRITE LUN_CRT ( "Arm: ", pnt.arm_number, NL)
+  --WRITE LUN_CRT ( "Queue: ", pnt.queue_status, NL)
+  --WRITE LUN_CRT ( "Seq: ", pnt.sequence_number, NL)
+  --WRITE LUN_CRT ( "Vel: ", pnt.linear_vel, " ; ", pnt.linear_vel, NL)
+	FOR i:=1 TO 10 DO
+		READ lun_tcp_trj(pnt.joint_positions[i]::4)
+	ENDFOR
+	READ lun_tcp_trj (pnt.digital_output::4)
+  --WRITE LUN_CRT ( "DO: ", pnt.digital_output, NL)
+
+  --WRITE LUN_CRT('Pos: ',pnt.joint_positions[1],', ',pnt.joint_positions[2],', ',pnt.joint_positions[3],', ',pnt.joint_positions[4],', ',pnt.joint_positions[5],', ',pnt.joint_positions[6],NL)
+
+	IF busy_queue THEN
+		check := 2 			-- coda occupata
+		-- messaggio coda occupata, inviare ping per verificare quando è libera
+		WRITE LUN_TP (NL, '[ROS_COMAU_trajectory / comau_joint_trj_pnt_decode()] Queue busy. Send a ping to verify when it is ready.', NL)
+		WRITE LUN_CRT (NL, '[ROS_COMAU_trajectory / comau_joint_trj_pnt_decode()] Queue busy. Send a ping to verify when it is ready.', NL)
+	ELSE
+		IF (pnt.msg_type = 3001) THEN
+			IF (pnt.comm_type <> 2) THEN
+				-- messaggio: comm_type deve essere di tipo service_request
+				WRITE LUN_TP (NL, '[ROS_COMAU_trajectory / comau_joint_trj_pnt_decode()] The comm_type filed has to be of type service_request type.', NL)
+				WRITE LUN_CRT (NL, '[ROS_COMAU_trajectory / comau_joint_trj_pnt_decode()] The comm_type filed has to be of type service_request type.', NL)
+			ELSE	
+				IF (pnt.arm_number = 0) THEN
+					-- messaggio: invalid arm number
+					WRITE LUN_TP (NL, '[ROS_COMAU_trajectory / comau_joint_trj_pnt_decode()] Invalid arm number.', NL)
+					WRITE LUN_CRT (NL, '[ROS_COMAU_trajectory / comau_joint_trj_pnt_decode()] Invalid arm number.', NL)
+				ELSE
+					IF ( idx_queue1 > 0 ) THEN
+						IF ( (traj_arm1.NODE[idx_queue1].sequence_num+1 <> pnt.sequence_number) AND (trj_complete = FALSE) ) THEN					----------
+							-- messaggio: il punto inserito non è successivo al punto precedente
+							WRITE LUN_TP (NL, '[ROS_COMAU_trajectory / comau_joint_trj_pnt_decode()] The last received point is not subsequent to the previous one.', NL)
+							WRITE LUN_CRT (NL, '[ROS_COMAU_trajectory / comau_joint_trj_pnt_decode()] The last received point is not subsequent to the previous one.', NL)
+							check := 3
+						ELSE
+							tmp_trj_pnt := pnt
+							add_point_to_trj( (pnt) )
+							check := 1
+						ENDIF
+					ELSE
+						tmp_trj_pnt := pnt
+						add_point_to_trj( (pnt) )
+						check := 1
+					ENDIF
+				ENDIF
+			ENDIF
+		ENDIF
+	ENDIF
+	comau_joint_trj_pnt_res_encode( (pnt),(check) )
+	RETURN (check)
+END comau_joint_trj_pnt_decode
+	
+ROUTINE add_point_to_trj(pt : ROS_comau_joint_trj_pnt)    				--------------------
+VAR
+	i : INTEGER
+BEGIN
+	WAIT sem_queue
+	
+	IF (trj_complete=TRUE) THEN
+		trj_complete := FALSE
+		IF (tmp_trj_pnt.sequence_number<2) THEN
+			IF (move_rob=TRUE) THEN
+				stop_motion
+			ENDIF
+			WRITE LUN_CRT('Cleaning index before writing new trajectory',NL)
+			idx_queue1 := 0 
+			idx_motion1 := 1   
+			new_trj := TRUE
+			IF (PATH_LEN(traj_arm1)>0) THEN
+				NODE_DEL(traj_arm1, 1, PATH_LEN(traj_arm1) )
+			ENDIF
+			override_trj := FALSE	
+		ENDIF
+	ENDIF		
+
+	idx_queue1 := idx_queue1 + 1
+	
+	IF (idx_queue1 > MAX_QUEUE_LENGTH) THEN
+		idx_queue1 := idx_queue1 MOD MAX_QUEUE_LENGTH
+		override_trj := TRUE
+	ENDIF
+
+	IF ((idx_queue1<=MAX_QUEUE_LENGTH) AND (override_trj=FALSE)) THEN
+		NODE_APP(traj_arm1,1)
+	ENDIF
+	FOR i:=1 TO 6 DO -- bug fix for C4G missing $LAST_JNT_AXIS variable 
+		traj_arm1.NODE[idx_queue1].$MAIN_JNTP[i] := tmp_trj_pnt.joint_positions[i]
+	ENDFOR
+	traj_arm1.NODE[idx_queue1].$LIN_SPD := tmp_trj_pnt.linear_vel
+	traj_arm1.NODE[idx_queue1].sequence_num := tmp_trj_pnt.sequence_number
+	traj_arm1.NODE[idx_queue1].digital_out := tmp_trj_pnt.digital_output
+
+	-- WRITE LUN_CRT('Added point: ',traj_arm1.NODE[idx_queue1].sequence_num,' With idx_queue1: ',idx_queue1,' and idx_motion1: ',idx_motion1,NL)
+	-- WRITE LUN_TP (NL, '[ROS_COMAU_trajectory / add_point_to_trj()] Point ', idx_queue1, ' has been added to the trajectory.', NL)
+	
+	IF ( ( (ABS(idx_motion1-idx_queue1)>=(MAX_QUEUE_LENGTH-2)) OR ( (ABS(idx_motion1-idx_queue1)<=2) AND (override_trj) ) ) AND ( ABS( traj_arm1.NODE[idx_motion1].sequence_num - traj_arm1.NODE[idx_queue1].sequence_num ) > 2 ) ) THEN
+		busy_queue := TRUE
+	ELSE
+		busy_queue := FALSE
+	ENDIF
+
+	SIGNAL sem_queue
+				
+END add_point_to_trj
+	
+
+ROUTINE comau_joint_trj_pnt_res_encode(pt : ROS_comau_joint_trj_pnt; check : INTEGER)  
+VAR
+	res_pt : ROS_comau_joint_trj_pnt
+BEGIN
+	res_pt.length := 72 -- tmp_trj_pnt.length
+	res_pt.msg_type := tmp_trj_pnt.msg_type
+	res_pt.comm_type := 3
+	IF check=1 THEN
+		res_pt.reply_code := 1
+	ELSE
+		res_pt.reply_code := 2
+	ENDIF
+	res_pt.arm_number := tmp_trj_pnt.arm_number
+	IF check=3 THEN
+		res_pt.queue_status := 3
+	ELSE
+		IF busy_queue THEN
+			res_pt.queue_status := 2
+		ELSE
+			res_pt.queue_status := 1
+		ENDIF
+	ENDIF
+	res_pt.sequence_number := tmp_trj_pnt.sequence_number
+	res_pt.linear_vel := tmp_trj_pnt.linear_vel
+	res_pt.joint_positions := tmp_trj_pnt.joint_positions
+	res_pt.digital_output := tmp_trj_pnt.digital_output
+
+	tmp_trj_pnt := res_pt 
+	
+END comau_joint_trj_pnt_res_encode
+
+ROUTINE generic_msg_decode(header : ROS_message_header; is_valid : BOOLEAN)
+VAR
+	pnt : ROS_comau_joint_trj_pnt
+BEGIN
+	READ lun_tcp_trj(pnt.arm_number::4, pnt.queue_status::4, pnt.sequence_number::4, pnt.linear_vel::4)
+	FOR i:=1 TO 10 DO
+		READ lun_tcp_trj(pnt.joint_positions[i]::4)
+	ENDFOR
+	READ lun_tcp_trj (pnt.digital_output::4)
+	
+	WAIT sem_queue
+	
+	-- IF ( (ABS(idx_motion1-idx_queue1)>=(MAX_QUEUE_LENGTH-2)) OR ((ABS(idx_motion1-idx_queue1)<=2)  AND (override_trj)) ) THEN
+	IF ( ( (ABS(idx_motion1-idx_queue1)>=(MAX_QUEUE_LENGTH-2)) OR ( (ABS(idx_motion1-idx_queue1)<=2) AND (override_trj) ) ) AND ( ABS( traj_arm1.NODE[idx_motion1].sequence_num - traj_arm1.NODE[idx_queue1].sequence_num ) > 2 ) ) THEN
+		busy_queue := TRUE
+	ELSE
+		busy_queue := FALSE
+	ENDIF
+	
+	generic_reply_msg_encode( header, is_valid ) 
+	
+	SIGNAL sem_queue
+	
+END generic_msg_decode	
+	
+	
+ROUTINE generic_reply_msg_encode(header : ROS_message_header; is_valid : BOOLEAN)   
+VAR
+	res_pt : ROS_comau_joint_trj_pnt
+BEGIN
+	res_pt.length := 72
+	res_pt.msg_type := header.msg_type
+	res_pt.comm_type := 3
+	
+	IF header.comm_type=2 THEN  
+		--IF ((header.msg_type=1) OR (header.msg_type=3002) OR (header.msg_type=3010) OR (header.msg_type=3011) OR (header.msg_type=3020)) THEN
+		IF (is_valid=TRUE) THEN
+			res_pt.reply_code := 1
+		ELSE
+			res_pt.reply_code := 2
+		ENDIF 
+	ELSE
+		res_pt.reply_code := 2
+	ENDIF
+	res_pt.arm_number := 1                                                --------
+	IF busy_queue THEN
+		res_pt.queue_status := 2
+	ELSE
+		res_pt.queue_status := 1
+	ENDIF
+	IF ( (is_valid=TRUE) AND (header.msg_type<>1) ) THEN
+		res_pt.sequence_number := traj_arm1.NODE[idx_queue1].sequence_num				--------
+		res_pt.linear_vel := tmp_trj_pnt.linear_vel
+		res_pt.joint_positions := tmp_trj_pnt.joint_positions
+		res_pt.digital_output := traj_arm1.NODE[idx_queue1].digital_out					--------
+	ELSE
+		res_pt.sequence_number := 0
+		res_pt.linear_vel := 0.0
+		FOR i:=1 TO 10 DO
+			res_pt.joint_positions[i] := 0.0
+		ENDFOR
+		res_pt.digital_output := 0
+	ENDIF
+		
+	tmp_trj_pnt := res_pt
+	
+END generic_reply_msg_encode
+
+
+	
+--------------
+---- MAIN ----
+--------------	
+	
+BEGIN
+	DIR_SET('UD:\\usr\\Flexicast\\ROSi_driver');   -- Set working directory
+	SYS_CALL('ML' ,'ROS_COMAU_tcp_utils');        -- Memory Load
+	
+	WRITE LUN_CRT (NL, 'Starting...', NL)
+
+  	CANCEL sem_queue
+	
+	IF PATH_LEN(traj_arm1)>0 THEN
+		NODE_DEL(traj_arm1,1,PATH_LEN(traj_arm1))
+	ENDIF
+	
+	shutdown := FALSE
+	busy_queue := FALSE
+	idx_queue1 := 0
+	--idx_motion1 := 1
+	new_trj := TRUE
+	override_trj := FALSE
+	trj_complete := FALSE
+	
+	SIGNAL sem_queue  -- inizializzazione semaforo
+	
+	WRITE LUN_CRT (NL, '[ROS_COMAU_trajectory] Connection starting...', NL)
+	OPEN FILE lun_tcp_trj ('NETT:', 'rw'),
+		WITH $FL_BINARY = TRUE, 
+	ENDOPEN
+	-- tcp_accept ( 1212, lun_tcp_trj, -1, VERBOSE)
+	tcp_accept (PORT_TRJ, lun_tcp_trj, LUN_CRT, VERBOSE)
+
+	WRITE LUN_CRT (NL, '[ROS_COMAU_trajectory] Ready to receive trajectory points.', NL)
+	REPEAT
+		READ lun_tcp_trj(msg_length::4) 
+		--WRITE LUN_CRT ('Message length: ', msg_length,NL)
+		IF msg_length = 0 THEN
+			WRITE LUN_CRT('Received message length is equal to 0!', NL)
+			--BREAK
+		ENDIF
+
+		rtn := simple_msg_decode
+		
+		--WRITE LUN_CRT ('Sending message to ROS...', NL)
+		--WRITE LUN_CRT ('Msg_length: ', tmp_trj_pnt.length, NL)
+		--WRITE LUN_CRT ('Msg_type: ', tmp_trj_pnt.msg_type, NL)
+		--WRITE LUN_CRT ('Comm_type: ', tmp_trj_pnt.comm_type, NL)
+		--WRITE LUN_CRT ('Reply_code: ', tmp_trj_pnt.reply_code, NL)
+		--WRITE LUN_CRT ('Arm_number: ', tmp_trj_pnt.arm_number, NL)
+		--WRITE LUN_CRT ('Queue_status: ', tmp_trj_pnt.queue_status, NL)
+		--WRITE LUN_CRT ('Seq_num: ', tmp_trj_pnt.sequence_number, NL)
+		
+		IF tmp_trj_pnt.length = 0 THEN
+			WRITE LUN_CRT('Response message length is equal to 0!', NL)
+			--BREAK
+		ENDIF
+
+		WRITE lun_tcp_trj(tmp_trj_pnt.length,tmp_trj_pnt.msg_type,tmp_trj_pnt.comm_type,tmp_trj_pnt.reply_code,tmp_trj_pnt.arm_number,tmp_trj_pnt.queue_status,tmp_trj_pnt.sequence_number)
+
+		WRITE lun_tcp_trj(tmp_trj_pnt.linear_vel)
+
+		FOR i:=1 TO 10 DO
+		  WRITE lun_tcp_trj(tmp_trj_pnt.joint_positions[i])
+		ENDFOR
+
+		WRITE lun_tcp_trj(tmp_trj_pnt.digital_output) 
+		DELAY 10
+			
+	UNTIL shutdown --trj_complete
+	
+	
+	DV_CNTRL(31, (lun_tcp_trj))
+	DELAY 1000
+	CLOSE FILE lun_tcp_trj
+	WRITE LUN_CRT (NL, '[ROS_COMAU_trajectory] Connection closed.', NL)
+	
+END ROS_COMAU_trajectory

@@ -1,0 +1,8 @@
+moveit_setup_assistant_config:
+  URDF:
+    package: comau_nj220foundry_support
+    relative_path: urdf/comau_nj220foundry.urdf
+  SRDF:
+    relative_path: config/comau_nj220foundry.srdf
+  CONFIG:
+    generated_timestamp: 1470073862

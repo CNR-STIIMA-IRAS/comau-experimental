@@ -1,0 +1,26 @@
+<!--
+  Manipulator specific version of comau_driver's 'comau_driver.launch'.
+
+  Defaults provided for COMAU NS16:
+   - joint_names_config_file = "$(find comau_ns16hand_support)/config/joint_names_comau_ns16hand.yaml"
+   - only_monitoring = false
+
+  Usage:
+    comau_ns16hand_driver.launch robot_ip:=<value> [joint_names_config_file:=<value>] [only_monitoring:=<true|false>]
+    
+    - robot_ip is the address of the robot controller (check ping before)
+    - joint_names_config_file: yaml file with the joint names (check that the names are the set in the URDF)
+    - only_monitoring: if true, the driver allow just the monitoring of the robot data
+-->
+<launch>
+  <arg name="robot_ip" />
+  <arg name="joint_names_config_file" default="$(find comau_ns16hand_support)/config/joint_names_comau_ns16hand.yaml" />
+  <arg name="only_monitoring" default="false" />
+  
+  <include file="$(find comau_robot_support_common)/launch/comau_robot_driver.launch">
+    <arg name="robot_ip"                value="$(arg robot_ip)"               />
+    <arg name="joint_names_config_file" value="$(arg joint_names_config_file)"/>
+    <arg name="only_monitoring"         value="$(arg only_monitoring)"        />
+  </include>
+  
+</launch>

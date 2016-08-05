@@ -1,0 +1,26 @@
+<!--
+  Manipulator specific version of the state visualizer.
+
+  Defaults provided for COMAU NS16:
+  - joint_names_config_file = "$(find comau_ns16hand_support)/config/joint_names_comau_ns16hand.yaml"
+  - xacro_file_name         = "$(find comau_ns16hand_support)/urdf/comau_ns16hand.xacro"
+  - only_monitoring = false
+
+  Usage:
+    robot_state_visualize_comau_ns16hand.launch robot_ip:=<value>
+-->
+<launch>
+
+  <arg name="robot_ip" />
+  <arg name="joint_names_config_file" default="$(find comau_ns16hand_support)/config/joint_names_comau_ns16hand.yaml" />
+  <arg name="xacro_file_name"         default="$(find comau_ns16hand_support)/urdf/comau_ns16hand.xacro" />
+  <arg name="only_monitoring"         default="false" />
+  
+  <include file="$(find comau_robot_support_common)/launch/comau_robot_driver_and_rviz.launch">
+    <arg name="robot_ip"                value="$(arg robot_ip)" />
+    <arg name="joint_names_config_file" value="$(arg joint_names_config_file)" />
+    <arg name="xacro_file_name"         value="$(arg xacro_file_name)" />
+    <arg name="only_monitoring"         value="$(arg only_monitoring)" />
+  </include>
+  
+</launch>

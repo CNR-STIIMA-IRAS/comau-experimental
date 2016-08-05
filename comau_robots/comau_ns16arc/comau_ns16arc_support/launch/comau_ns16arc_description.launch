@@ -1,0 +1,20 @@
+<!--
+  Manipulator specific version of loading the robot description.
+
+  Defaults provided for COMAU NS16:
+   - test = false
+   - xacro_file_name = "$(find comau_ns16arc_support)/urdf/comau_ns16arc.xacro"
+   
+  Usage:
+    comau_ns16arc_description.launch  [ xacro_file_name:=<value> ] [ test:=<value> ]
+-->
+
+<launch>
+  <arg name="test"            default="false" />
+  <arg name="xacro_file_name" default="$(find comau_ns16arc_support)/urdf/comau_ns16arc.xacro" />
+  
+  <include file="$(find comau_robot_support_common)/launch/comau_robot_description.launch" >
+    <arg name="xacro_file_name" value="$(arg xacro_file_name)" />
+    <arg name="test"            value="$(arg test)" />
+  </include>
+</launch>

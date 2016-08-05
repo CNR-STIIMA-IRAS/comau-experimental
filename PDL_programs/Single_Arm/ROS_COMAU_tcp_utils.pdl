@@ -1,0 +1,117 @@
+PROGRAM ROS_COMAU_tcp_utils NOHOLD
+  -------------------------------------------------------------------------------
+  -- Alberto Marini
+  -- alberto.marini@itia.cnr.it
+  -------------------------------------------------------------------------------
+  -- Brief:
+  --    ** TCP/IP communication routines 
+  
+CONST
+  DV_TCP_GET = 27           -- documentazione comau
+  DV_TCP_ACCEPT = 29        -- documentazione comau (open a server)
+  DV_TCP_CONNECT = 30       -- documentazione comau (open a client)
+  DV_TCP_DISCONNECT = 31    -- documentazione comau
+  
+ROUTINE ru_get(vi_netlun, vi_scrlun, verbose : INTEGER) EXPORTED FROM ROS_COMAU_tcp_utils
+ROUTINE tcp_accept(port, vi_netlun, vi_scrlun, verbose : INTEGER) EXPORTED FROM ROS_COMAU_tcp_utils
+ROUTINE tcp_disconnect(vi_netlun, vi_scrlun, verbose : INTEGER) EXPORTED FROM ROS_COMAU_tcp_utils
+
+---------------------------------------------------------------
+-- ru_get()
+---------------------------------------------------------------
+-- print at video (CRT) information concerning the remote 
+-- connection established
+---------------------------------------------------------------
+ROUTINE ru_get(vi_netlun, vi_scrlun, verbose : INTEGER)
+VAR ls_session, ls_accept, ls_connect : STRING[40]
+  li_remote, li_local, li_options, li_linger : INTEGER
+BEGIN
+  -- DV_CNTRL Build in Routine fuer get information ----------------------
+  DV_CNTRL(DV_TCP_GET, (vi_netlun), ls_session, ls_accept, ls_connect, li_remote, li_local, li_options, li_linger)
+  IF $DV_STS = 0 THEN
+    IF verbose = 1 THEN
+      IF vi_scrlun = -1 THEN
+        WRITE LUN_CRT ( NL, '[ROS_COMAU_trajectory / ru_get() ] ', NL )
+        WRITE LUN_CRT (' Session: ', ls_session, ' Accept: ', ls_accept, NL )
+        WRITE LUN_CRT (' Connect: ', ls_connect, ' Remote Port: ', li_remote, ' Local: ', li_local, NL )
+      ELSE
+        WRITE vi_scrlun ( NL,'[ROS_COMAU_trajectory / ru_get() ] ', NL )
+        WRITE vi_scrlun (' Connect: ', ls_connect, ' Port: ', li_remote, ' Local: ', li_local, NL )
+        
+      ENDIF
+    ENDIF
+  ENDIF
+END ru_get
+
+
+---------------------------------------------------------------
+-- tcp_accept()
+---------------------------------------------------------------
+-- prepares the program to accept connections from remote TCP clients, 
+-- that is, it creates a TCP server
+-- INPUT:
+--     port:        open-port on the remote server
+--     vi_netlun:   the "file" corresponding to the network resource, that is:
+--                  BEFORE create a client, we need to create the network connection
+--                  as below:
+--                  "OPEN FILE netlun ('NETT:', 'rw') WITH $FL_ADLMT = '\010'"
+--     vi_scrlun:   handle to a screen where write the status outputs. If -1, the
+--                  outputs will be written in the TP
+--     verbose:     if 1, a lot of stuff will be written at screen, if 0, minimum
+--                  information will be written
+---------------------------------------------------------------
+ROUTINE tcp_accept(port, vi_netlun, vi_scrlun, verbose : INTEGER)
+BEGIN
+
+  IF verbose = 1 THEN 
+    IF vi_scrlun = -1 THEN
+      WRITE LUN_TP ('[ROS_COMAU_trajectory / tcp_accept() ] Waiting for connections...', NL)
+    ELSE
+      WRITE vi_scrlun ('[ROS_COMAU_trajectory / tcp_accept() ] Waiting for connections...', NL)
+    ENDIF
+  ENDIF
+  
+  DV_CNTRL(DV_TCP_ACCEPT, (vi_netlun), (port), '0.0.0.0')
+  
+  IF $DV_STS = 0 THEN
+    ru_get((vi_netlun), -1, verbose)
+    IF verbose = 1 THEN 
+      IF vi_scrlun = -1 THEN
+        WRITE LUN_TP (NL, '[ROS_COMAU_trajectory / tcp_accept()] Connected.', NL)
+      ELSE
+        WRITE vi_scrlun (NL, '[ROS_COMAU_trajectory / tcp_accept()] Connected.', NL)
+      ENDIF
+    ENDIF
+  ELSE
+    IF vi_scrlun = -1 THEN
+      WRITE LUN_TP (NL, '[ROS_COMAU_trajectory / tcp_accept()] Error! $DV_STS=', $DV_STS , NL)
+    ELSE
+      WRITE vi_scrlun (NL, '[ROS_COMAU_trajectory / tcp_accept()] Error! $DV_STS=', $DV_STS , NL)
+    ENDIF
+  ENDIF
+  
+END tcp_accept
+
+
+---------------------------------------------------------------
+-- tcp_disconnect()
+---------------------------------------------------------------
+-- Disconnect the client/server
+-- INPUT:
+--     vi_netlun:   the "file" corresponding to the network resource, that is:
+--                  BEFORE create a client, we need to create the network connection
+--                  as below:
+--                  "OPEN FILE netlun ('NETT:', 'rw') WITH $FL_ADLMT = '\010'"
+--     vi_scrlun:   handle to a screen where write the status outputs. If -1, the
+--                  outputs will be written in the CRT
+--     verbose:     if 1, a lot of stuff will be written at screen, if 0, minimum
+--                  information will be written
+---------------------------------------------------------------
+ROUTINE tcp_disconnect(vi_netlun, vi_scrlun, verbose : INTEGER)
+BEGIN
+  DV_CNTRL(dv_tcp_disconnect, (vi_netlun))   -- DV_CNTRL Build in Routine fuer disconnect
+END tcp_disconnect
+
+
+BEGIN
+END ROS_COMAU_tcp_utils

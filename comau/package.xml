@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<package>
+  <name>comau</name>
+  <version>0.0.0</version>
+  <description>comau metapackage</description>
+
+  <maintainer email="alberto.marini@itia.cnr.it">alberto</maintainer>
+  <license>TODO</license>
+
+  <author email="alberto.marini@itia.cnr.it">Alberto Marini</author>
+  <author email="enrico.villagrossi@itia.cnr.it">Enrico Villagrossi</author>
+  <author email="manuel.beschi@itia.cnr.it">Manuel Beschi</author>
+  <author email="nicola.pedrocchi@itia.cnr.it">Nicola Pedrocchi</author>
+  
+  <buildtool_depend>catkin</buildtool_depend>
+  
+  <export>
+    <metapackage/>
+  </export>
+</package>

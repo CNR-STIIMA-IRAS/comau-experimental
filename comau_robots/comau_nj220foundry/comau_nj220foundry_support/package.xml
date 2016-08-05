@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<package>
+  <name>comau_nj220foundry_support</name>
+  <version>0.0.1</version>
+  <description>The comau_nj220foundry_support package</description>
+
+  <maintainer email="nicola.pedrocchi@itia.cnr.it">Nicola Pedrocchi</maintainer>
+  <license>MIT</license>
+
+  <!-- <url type="website">http://wiki.ros.org/ns16hand_support</url> -->
+
+  <author email="nicola.pedrocchi@itia.cnr.it">Nicola Pedrocchi</author>
+  <author email="enrico.villagrossi@itia.cnr.it">Enrico Villagrossi</author>
+  <author email="alberto.marini@itia.cnr.it">Alberto Marini</author>
+  <author email="manuel.beschi@itia.cnr.it">Manuel Beschi</author>
+
+  <run_depend>comau_driver</run_depend>
+  
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <export>
+    <!-- Other tools can request additional information be placed here -->
+  </export>
+</package>

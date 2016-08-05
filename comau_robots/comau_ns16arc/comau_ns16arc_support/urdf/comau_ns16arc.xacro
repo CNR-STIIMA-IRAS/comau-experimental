@@ -1,0 +1,14 @@
+<?xml version="1.0" ?>
+
+<robot name="comau_ns16arc" xmlns:xacro="http://ros.org/wiki/xacro">
+	<xacro:include filename="$(find comau_ns16arc_support)/urdf/comau_ns16arc_macro.xacro"/>
+	<xacro:comau_ns16arc prefix="" />
+  
+  <!-- Frame coincident with all-zeros TCP on COMAU controller -->
+  <link name="world"/>
+  <joint name="world_joint" type="fixed">
+    <child link="world"/>
+    <parent link="base"/>
+    <origin rpy="0 0 -3.14159265" xyz="0.0 0.0 0.0"/>
+  </joint>
+</robot>

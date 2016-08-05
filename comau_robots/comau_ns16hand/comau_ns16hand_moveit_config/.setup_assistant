@@ -1,0 +1,8 @@
+moveit_setup_assistant_config:
+  URDF:
+    package: comau_ns16hand_description
+    relative_path: urdf/comau_ns16hand.urdf
+  SRDF:
+    relative_path: config/comau_ns16hand.srdf
+  CONFIG:
+    generated_timestamp: 1469199174

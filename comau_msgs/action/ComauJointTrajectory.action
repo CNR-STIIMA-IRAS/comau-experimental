@@ -1,0 +1,6 @@
+comau_msgs/JointTrajComau goal
+
+---
+industrial_msgs/ServiceReturnCode result
+
+---

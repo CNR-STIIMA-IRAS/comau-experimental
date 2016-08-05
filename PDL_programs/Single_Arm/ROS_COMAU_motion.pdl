@@ -1,0 +1,233 @@
+PROGRAM ROS_COMAU_motion HOLD, &PA
+  -------------------------------------------------------------------------------
+  -- Alberto Marini
+  -- alberto.marini@itia.cnr.it
+  -------------------------------------------------------------------------------
+  -- Brief:
+  --    Program that handles the real motion through the trajectory
+  -------------------------------------------------------------------------------
+
+TYPE 
+	pt_arm1 = NODEDEF
+		$MAIN_JNTP FOR ARM[1]
+		$LIN_SPD
+		digital_out : INTEGER
+		sequence_num : INTEGER
+	ENDNODEDEF  
+	
+CONST
+	MAX_QUEUE_LENGTH = 200  -- cambiare anche in ROS_COMAU_trajectory!!!
+
+VAR
+	timer_idx 	: INTEGER EXPORTED FROM ROS_COMAU_motion_feedback
+
+	traj_arm1 	: PATH OF pt_arm1 EXPORTED FROM ROS_COMAU_trajectory
+	idx_queue1 	: INTEGER EXPORTED FROM ROS_COMAU_trajectory
+	idx_motion1 	: INTEGER EXPORTED FROM ROS_COMAU_motion
+	shutdown 	: BOOLEAN EXPORTED FROM ROS_COMAU_trajectory
+	move_rob 	: BOOLEAN EXPORTED FROM ROS_COMAU_motion
+	trj_complete 	: BOOLEAN EXPORTED FROM ROS_COMAU_trajectory
+	motion_complete	: BOOLEAN 
+	execute_cancel_all : BOOLEAN
+	execution_point : INTEGER EXPORTED FROM ROS_COMAU_motion
+	is_locked 	: BOOLEAN
+	is_moving 	: BOOLEAN EXPORTED FROM ROS_COMAU_motion
+	new_trj 	: BOOLEAN EXPORTED FROM ROS_COMAU_trajectory
+	sem_queue 	: SEMAPHORE EXPORTED FROM ROS_COMAU_trajectory  NOSAVE
+	
+
+ROUTINE stop_motion EXPORTED FROM ROS_COMAU_motion
+ROUTINE start_motion EXPORTED FROM ROS_COMAU_motion
+ROUTINE cancel_motion EXPORTED FROM ROS_COMAU_motion
+ROUTINE clear_interpolator_queue EXPORTED FROM ROS_COMAU_motion
+ROUTINE condition1 EXPORTED FROM ROS_COMAU_motion
+ROUTINE condition2 EXPORTED FROM ROS_COMAU_motion
+
+ROUTINE stop_motion
+BEGIN
+	WRITE LUN_CRT('Stop motion!',NL)
+	move_rob := FALSE
+	motion_complete := FALSE
+END stop_motion
+
+ROUTINE start_motion
+BEGIN
+	WRITE LUN_CRT('Start motion!',NL)
+	-- WRITE LUN_CRT('traj_arm1.NODE[idx_motion1].sequence_num = ', traj_arm1.NODE[idx_motion1].sequence_num, '     traj_arm1.NODE[idx_queue1].sequence_num = ', traj_arm1.NODE[idx_queue1].sequence_num, NL)
+	move_rob := TRUE
+END start_motion
+
+ROUTINE cancel_motion
+BEGIN
+	WRITE LUN_CRT('Cancel motion!',NL)
+	move_rob := FALSE
+	is_moving := FALSE
+	motion_complete := TRUE
+	DELAY 100
+	execute_cancel_all := TRUE
+END cancel_motion
+
+ROUTINE clear_interpolator_queue
+BEGIN
+	CANCEL ALL FOR ALL
+	execute_cancel_all := FALSE
+	ENABLE CONDITION[4]
+END clear_interpolator_queue
+
+ROUTINE condition1
+BEGIN
+	-- WRITE LUN_CRT('Condition 1 - UnLocking')
+	UNLOCK
+	RESUME
+	is_locked := FALSE
+	is_moving := TRUE
+	-- WRITE LUN_CRT('Condition 1 - UnLocked')
+	ENABLE CONDITION[2]
+END condition1
+
+ROUTINE condition2
+BEGIN
+	-- WRITE LUN_CRT('Condition 2 - Locking', NL)
+	LOCK
+	is_locked := TRUE
+	is_moving := FALSE
+	-- WRITE LUN_CRT('Condition 2 - Locked', NL)
+	ENABLE CONDITION[1]
+END condition2
+
+ROUTINE condition3
+BEGIN
+	is_moving := FALSE
+	-- WRITE LUN_CRT('Condition 3 - is_moving: ', is_moving, NL )
+END condition3
+
+
+--------------
+---- MAIN ----
+--------------  
+
+BEGIN
+	CONDITION[1]:
+		WHEN move_rob DO
+			condition1
+	ENDCONDITION
+	
+	CONDITION[2]:
+		WHEN move_rob=FALSE DO
+			condition2
+	ENDCONDITION
+
+	CONDITION[3]:
+		WHEN AT END DO
+			condition3
+	ENDCONDITION
+
+	CONDITION[4]:
+		WHEN execute_cancel_all=TRUE DO
+			clear_interpolator_queue
+	ENDCONDITION
+	
+	idx_motion1 := 1
+	execution_point := 0
+	move_rob := FALSE
+	motion_complete := FALSE
+	is_locked := FALSE
+	is_moving := FALSE
+	execute_cancel_all := FALSE
+	
+	$BASE := POS(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, '')
+	$UFRAME := POS(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, '')
+	--$TOOL := POS(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, '')
+	$PROG_SPD_OVR := 100
+	--$JNT_MTURN := FALSE
+	$TURN_CARE := TRUE
+	
+	REPEAT 
+		DELAY 10
+	UNTIL move_rob
+	
+	ENABLE CONDITION[2]
+	ENABLE CONDITION[4]	
+
+	LOCK
+	CANCEL ALL
+	UNLOCK
+	RESUME
+	
+	REPEAT
+		IF ( (PATH_LEN(traj_arm1)=0) OR (move_rob=FALSE) ) THEN
+			DELAY 10
+		ELSE
+			IF ( (motion_complete=TRUE) )  THEN
+				DELAY 10
+				
+				WAIT sem_queue
+
+				IF (traj_arm1.NODE[idx_motion1].sequence_num < traj_arm1.NODE[idx_queue1].sequence_num) THEN
+					motion_complete := FALSE
+					WRITE LUN_CRT(' motion_complete ', motion_complete, NL)
+						
+				ELSE 
+					IF ( traj_arm1.NODE[idx_queue1].sequence_num = 1 ) AND (trj_complete) AND (new_trj) THEN
+						motion_complete := FALSE
+						WRITE LUN_CRT(' trajectory completed! ', NL)
+					ELSE	
+						DELAY 10
+					ENDIF
+				ENDIF
+
+				SIGNAL sem_queue
+				DELAY 10
+			ELSE 
+				WAIT sem_queue
+
+				IF (traj_arm1.NODE[idx_motion1].sequence_num < traj_arm1.NODE[idx_queue1].sequence_num) AND (move_rob=TRUE) THEN
+					-- WRITE LUN_CRT('MOVEFLY Motion seq num: ',traj_arm1.NODE[idx_motion1].sequence_num,' With idx_motion1: ',idx_motion1, ' and idx_queue1: ',idx_queue1, NL)
+					
+					is_moving := ( NOT is_locked )
+					MOVEFLY LINEAR TO traj_arm1.NODE[idx_motion1].$MAIN_JNTP ADVANCE,
+						WITH $FLY_TYPE = FLY_CART, $MOVE_TYPE = LINEAR, $SPD_OPT = SPD_LIN, 
+						WITH $LIN_SPD = traj_arm1.NODE[idx_motion1].$LIN_SPD, $TERM_TYPE = COARSE, $TOL_COARSE = 1, 
+					ENDMOVE
+					-- WRITE LUN_CRT ('[ROS_COMAU_MOTION] LAST EXECUTED NODE (MOVEFLY): ', idx_motion1, '   LIN_SPD: ', traj_arm1.NODE[idx_motion1].$LIN_SPD, NL)	
+					
+					execution_point := traj_arm1.NODE[idx_motion1].sequence_num
+					
+					idx_motion1 := idx_motion1+1
+					IF (idx_motion1 > MAX_QUEUE_LENGTH) THEN
+						idx_motion1 := idx_motion1 MOD MAX_QUEUE_LENGTH
+					ENDIF
+					-- WRITE LUN_CRT('END MOVEFLY Motion seq num: ',traj_arm1.NODE[idx_motion1].sequence_num,' With idx_motion1: ',idx_motion1, ' and idx_queue1: ',idx_queue1, NL, NL)
+					
+				ELSE
+					IF (traj_arm1.NODE[idx_motion1].sequence_num = traj_arm1.NODE[idx_queue1].sequence_num) AND (move_rob=TRUE) THEN
+						-- WRITE LUN_CRT('MOVE Motion seq num: ',traj_arm1.NODE[idx_motion1].sequence_num,' With idx_motion1: ',idx_motion1, ' and idx_queue1: ',idx_queue1, NL)
+						
+						new_trj := FALSE
+						is_moving := ( NOT is_locked )
+						MOVE LINEAR TO traj_arm1.NODE[idx_motion1].$MAIN_JNTP,
+							WITH CONDITION[3],
+							WITH $FLY_TYPE = FLY_CART, $MOVE_TYPE = LINEAR, $SPD_OPT = SPD_LIN, 
+							WITH $LIN_SPD = traj_arm1.NODE[idx_motion1].$LIN_SPD, $TERM_TYPE = FINE -- $TERM_TYPE = COARSE, $TOL_COARSE = 1, 
+						ENDMOVE
+						
+						execution_point := traj_arm1.NODE[idx_motion1].sequence_num
+						motion_complete := TRUE
+					
+						-- WRITE LUN_CRT('END MOVE Motion seq num: ',traj_arm1.NODE[idx_motion1].sequence_num,' With idx_motion1: ', idx_motion1, ' Queue length: ',idx_queue1, NL, NL)
+						DELAY 50
+
+					ELSE
+						DELAY 10
+					ENDIF
+				ENDIF
+				SIGNAL sem_queue
+
+			ENDIF
+			DELAY 10
+		ENDIF
+	UNTIL shutdown
+
+	DELAY 1000
+
+END ROS_COMAU_motion

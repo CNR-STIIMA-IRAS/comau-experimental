@@ -1,0 +1,34 @@
+<!--
+  Manipulator specific version of the actual robot state visualizer and driver.
+
+  Defaults provided for COMAU ROBOT:
+  - only_monitoring = false
+
+  Usage:
+    robot_state_visualize_comau_ns16hand.launch robot_ip:=<value> xacro_file_name:=<value> joint_names_config_file:=<value> [only_monitoring:=<true|false>]
+-->
+<launch>
+
+  <arg name="robot_ip" />
+  <arg name="joint_names_config_file"  />
+  <arg name="xacro_file_name"          />
+  <arg name="only_monitoring"         default="false" />
+  
+  <include file="$(find comau_robot_support_common)/launch/comau_robot_driver.launch">
+    <arg name="robot_ip"                value="$(arg robot_ip)"               />
+    <arg name="joint_names_config_file" value="$(arg joint_names_config_file)"/>
+    <arg name="only_monitoring"         value="$(arg only_monitoring)"        />
+  </include>
+  
+  <!-- tf and direct kin -->
+  <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
+  <!-- load the urdf model -->
+  <include file="$(find comau_robot_support_common)/launch/comau_robot_description.launch" >
+    <arg name="xacro_file_name" value="$(arg xacro_file_name)" />
+    <arg name="test" value="false" />
+  </include>
+  
+  <!-- visualize the robot -->
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find industrial_robot_client)/config/robot_state_visualize.rviz" required="true" />
+  
+</launch>

@@ -1,0 +1,296 @@
+<?xml version="1.0" ?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+  
+<xacro:macro name="comau_nj220foundry" params="prefix">
+  <link name="${prefix}base_link">
+    <inertial>
+      <origin xyz="-0.0358170633766097 -1.20441996116888E-05 0.133200870997853" rpy="0 0 0" />
+      <mass value="780.971804585525" />
+      <inertia
+        ixx="25.7893755214986"
+        ixy="0.00235845405507113"
+        ixz="-0.00767829710479589"
+        iyy="33.647645098437"
+        iyz="-2.52517581915218E-05"
+        izz="48.0777964288332" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://comau_nj220foundry_support/meshes/base_link.STL" />
+      </geometry>
+      <material name="">
+        <color rgba="1 0 0 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://comau_nj220foundry_support/meshes/base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="${prefix}link_1">
+    <inertial>
+      <origin xyz="-0.31396992767481 0.0253587384500452 -0.474017704993115" rpy="0 0 0" />
+      <mass value="420.565744343403" />
+      <inertia
+        ixx="35.7817509056238"
+        ixy="0.520180036390352"
+        ixz="10.0053587127595"
+        iyy="30.9722759894707"
+        iyz="0.160171361208465"
+        izz="34.6744270964128" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://comau_nj220foundry_support/meshes/link_1.STL" />
+      </geometry>
+      <material name="">
+        <color rgba="1 0 0 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://comau_nj220foundry_support/meshes/link_1.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="${prefix}Joint_1" type="continuous">
+    <origin xyz="0 0 0.235" rpy="3.1416 0 3.1416" />
+    <parent link="${prefix}base_link" />
+    <child link="${prefix}link_1" />
+    <axis xyz="0 0 1" />
+    <limit
+      effort="0"
+      lower="-1.570796327"
+      upper="1.570796327"
+      velocity="0" />
+  </joint>
+  <link name="${prefix}link_2">
+    <inertial>
+      <origin xyz="0.513837931238063 0.0184154121097806 -0.00325920706541606" rpy="0 0 0" />
+      <mass value="120.346338479762" />
+      <inertia
+        ixx="2.21763636029507"
+        ixy="0.108333386772274"
+        ixz="-0.466409872645464"
+        iyy="21.9600059511248"
+        iyz="-0.00164891028536273"
+        izz="21.6711305445385" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://comau_nj220foundry_support/meshes/link_2.STL" />
+      </geometry>
+      <material name="">
+        <color rgba="1 0 0 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://comau_nj220foundry_support/meshes/link_2.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="${prefix}Joint_2" type="continuous">
+    <origin xyz="-0.4 0 -0.595" rpy="-1.5708 1.5708 0" />
+    <parent link="${prefix}link_1" />
+    <child link="${prefix}link_2" />
+    <axis xyz="0 0 1" />
+    <limit
+      effort="0"
+      lower="-1.308996939"
+      upper="1.658062789"
+      velocity="0" />
+  </joint>
+  <link name="${prefix}link_3">
+    <inertial>
+      <origin xyz="-0.210396124225083 -0.0423931479719581 -0.019391381682002" rpy="0 0 0" />
+      <mass value="303.80693605973" />
+      <inertia
+        ixx="8.35587249373669"
+        ixy="-0.244128411277754"
+        ixz="1.1650469937296"
+        iyy="10.8913039787856"
+        iyz="0.330627906059617"
+        izz="6.72354689581788" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://comau_nj220foundry_support/meshes/link_3.STL" />
+      </geometry>
+      <material name="">
+        <color rgba="1 0 0 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://comau_nj220foundry_support/meshes/link_3.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="${prefix}Joint_3" type="continuous">
+    <origin xyz="1.175 0 0" rpy="-3.1416 0 1.5708" />
+    <parent link="${prefix}link_2" />
+    <child link="${prefix}link_3" />
+    <axis xyz="0 0 1" />
+    <limit
+      effort="0"
+      lower="-4.468042885"
+      upper="0.174532925"
+      velocity="0" />
+  </joint>
+  <link name="${prefix}link_4">
+    <inertial>
+      <origin xyz="-0.0256728535495437 2.66762843369739E-05 -0.712275200970885" rpy="0 0 0" />
+      <mass value="90.9627495047463" />
+      <inertia
+        ixx="11.9711971614497"
+        ixy="0.000238836881384474"
+        ixz="0.72899757991181"
+        iyy="12.0895566165064"
+        iyz="-0.000197635616744173"
+        izz="0.629339131875661" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://comau_nj220foundry_support/meshes/link_4.STL" />
+      </geometry>
+      <material name="">
+        <color rgba="1 0 0 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://comau_nj220foundry_support/meshes/link_4.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="${prefix}Joint_4" type="continuous">
+    <origin xyz="-0.25 0.105 0" rpy="1.5708 1.5708 0" />
+    <parent link="${prefix}link_3" />
+    <child link="${prefix}link_4" />
+    <axis xyz="0 0 1" />
+    <limit
+      effort="0"
+      lower="-6.2831853"
+      upper="6.2831853"
+      velocity="0" />
+  </joint>
+  <link name="${prefix}link_5">
+    <inertial>
+      <origin xyz="-2.49575698055282E-05 -0.0937543698376899 0.0150627860882397" rpy="0 0 0" />
+      <mass value="50.6154004140881" />
+      <inertia
+        ixx="0.865924420901739"
+        ixy="-1.86243900593643E-05"
+        ixz="-9.94807975766733E-05"
+        iyy="0.668259992097818"
+        iyz="0.0263894524846694"
+        izz="0.387396231292754" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://comau_nj220foundry_support/meshes/link_5.STL" />
+      </geometry>
+      <material name="">
+        <color rgba="1 0 0 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://comau_nj220foundry_support/meshes/link_5.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="${prefix}Joint_5" type="continuous">
+    <origin xyz="0 0 -1.0203" rpy="1.5708 0 1.5708" />
+    <parent link="${prefix}link_4" />
+    <child link="${prefix}link_5" />
+    <axis xyz="0 0 1" />
+    <limit
+      effort="0"
+      lower="-2.1816"
+      upper="2.1816"
+      velocity="0" />
+  </joint>
+  <link name="${prefix}link_6">
+    <inertial>
+      <origin xyz="-0.000609515326357325 5.99002323801445E-05 -0.0238593646013907" rpy="0 0 0" />
+      <mass value="5.34369556729818" />
+      <inertia
+        ixx="0.015146537297728"
+        ixy="-5.65758676356259E-06"
+        ixz="-1.08667116239343E-05"
+        iyy="0.0150032929637792"
+        iyz="1.19663919621948E-06"
+        izz="0.0291340358139359" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://comau_nj220foundry_support/meshes/link_6.STL" />
+      </geometry>
+      <material name="">
+        <color rgba="0.250980392156863 0.250980392156863 0.250980392156863 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://comau_nj220foundry_support/meshes/link_6.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="${prefix}Joint_6" type="continuous">
+    <origin xyz="0 -0.1905 0" rpy="-1.5708 -1.5708 0" />
+    <parent link="${prefix}link_5" />
+    <child link="${prefix}link_6" />
+    <axis xyz="0 0 1" />
+    <limit
+      effort="0"
+      lower="-6.2831853"
+      upper="6.2831853"
+      velocity="0" />
+  </joint>
+
+  <link name="${prefix}flange" />
+  <joint name="${prefix}flange_fake_jnt" type="fixed">
+    <origin xyz="0 0 -0.0395" rpy="3.1416 0 -1.5708" />
+    <parent link="${prefix}link_6" />
+    <child link="${prefix}flange" />
+    <axis xyz="0 0 0" />
+  </joint>
+  <link name="${prefix}ee_link" />
+  <joint name="${prefix}ee_link_fixed" type="fixed">
+    <origin 
+      xyz="0.0 0.0 0.0" 
+      rpy="0.0 0.0 0.0" />
+    <parent link="${prefix}flange" />
+    <child link="${prefix}ee_link" />
+    <axis xyz="0 0 0" />
+  </joint>
+
+  <!-- ROS base_link to COMAU World Coordinates transform -->
+  <link name="${prefix}base" />
+  <joint name="${prefix}base_link-base" type="fixed">
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <child link="${prefix}base"/>
+    <parent link="${prefix}base_link"/>
+  </joint>
+  
+</xacro:macro>
+</robot>
+
+

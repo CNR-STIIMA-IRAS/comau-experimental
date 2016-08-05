@@ -1,0 +1,14 @@
+<?xml version="1.0" ?>
+
+<robot name="comau_nj220foundry" xmlns:xacro="http://ros.org/wiki/xacro">
+	<xacro:include filename="$(find comau_nj220foundry_support)/urdf/comau_nj220foundry_no_paralelogram_macro.xacro"/>
+	<xacro:comau_nj220foundry prefix="" />
+  
+  <!-- Frame coincident with all-zeros TCP on COMAU controller -->
+  <link name="world"/>
+  <joint name="world_joint" type="fixed">
+    <child link="world"/>
+    <parent link="base"/>
+    <origin rpy="0 0 -3.14159265" xyz="0.0 0.0 0.0"/>
+  </joint>
+</robot>

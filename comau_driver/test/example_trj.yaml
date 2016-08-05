@@ -1,0 +1,57 @@
+test_trj:
+  nPoints: 11
+  point_0:
+    arm_number: 1
+    digital_output: 0#decimal representation of a binary number where every bit is associated with a digital output
+    velocity: [0.5]#in m/s
+    joint_position: [-5.0, -3.0, -126.0, 35.0, -44.0, -7.0]#in deg
+  point_1:
+    arm_number: 1
+    digital_output: 0
+    velocity: [0.5]
+    joint_position: [17.0, -1.0, -126.0, 23.0, -51.0, 26.0]
+  point_2:
+    arm_number: 1
+    digital_output: 0
+    velocity: [0.5]
+    joint_position: [13.0, 15.0, -140.0, -18.0, -52.0, 38.0]
+  point_3:
+    arm_number: 1
+    digital_output: 0
+    velocity: [0.5]
+    joint_position: [-8.0, 14.0, -139.0, 31.0, -44.0, 31.0]
+  point_4:
+    arm_number: 1
+    digital_output: 0
+    velocity: [0.5]
+    joint_position: [-5.0, -3.0, -126.0, 35.0, -44.0, -7.0]
+  point_5:
+    arm_number: 1
+    digital_output: 0
+    velocity: [0.5]
+    joint_position: [17.0, -1.0, -126.0, 23.0, -51.0, 26.0]
+  point_6:
+    arm_number: 1
+    digital_output: 0
+    velocity: [0.5]
+    joint_position: [13.0, 15.0, -140.0, -18.0, -52.0, 38.0]
+  point_7:
+    arm_number: 1
+    digital_output: 0
+    velocity: [0.5]
+    joint_position: [-8.0, 14.0, -139.0, 31.0, -44.0, 31.0]
+  point_8:
+    arm_number: 1
+    digital_output: 0
+    velocity: [0.5]
+    joint_position: [-5.0, -3.0, -126.0, 35.0, -44.0, -7.0]
+  point_9:
+    arm_number: 1
+    digital_output: 0
+    velocity: [0.5]
+    joint_position: [17.0, -1.0, -126.0, 23.0, -51.0, 26.0]
+  point_10:
+    arm_number: 1
+    digital_output: 0
+    velocity: [0.5]
+    joint_position: [13.0, 15.0, -140.0, -18.0, -52.0, 38.0]

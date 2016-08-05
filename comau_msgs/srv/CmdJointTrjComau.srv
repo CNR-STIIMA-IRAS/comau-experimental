@@ -1,0 +1,3 @@
+comau_msgs/JointTrajComau trajectory
+---
+industrial_msgs/ServiceReturnCode code

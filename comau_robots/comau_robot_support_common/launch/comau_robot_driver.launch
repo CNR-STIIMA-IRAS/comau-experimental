@@ -1,0 +1,25 @@
+<!--
+  Manipulator generic version of comau_driver's launcher.
+
+  Defaults provided for COMAU ROBOT:
+   - only_monitoring = false
+   
+  Usage:
+    comau_robot_driver.launch robot_ip:=<value> joint_names_config_file:=<value> [only_monitoring:=<true|false>]
+    
+    - robot_ip is the address of the robot controller (check ping before)
+    - joint_names_config_file: yaml file with the joint names (check that the names are the set in the URDF)
+    - only_monitoring: if true, the driver allow just the monitoring of the robot data
+-->
+<launch>
+  <arg name="robot_ip" />
+  <arg name="joint_names_config_file" />
+  <arg name="only_monitoring" default="false" />
+  
+  <include file="$(find comau_driver)/launch/comau_driver.launch">
+    <arg name="robot_ip"                value="$(arg robot_ip)" />
+    <arg name="joint_names_config_file" value="$(arg joint_names_config_file)" />
+    <arg name="only_monitoring"         value="$(arg only_monitoring)" />
+  </include>
+  
+</launch>
