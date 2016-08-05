@@ -97,4 +97,7 @@ ComauJointTrajectory.action:
   industrial_msgs/ServiceReturnCode result     
   ---
 ```
-It provides the interface of the Action Server/Client structure:  
+It provides the interface of the Action Server/Client structure.
+
+**Note:**  
+> A bridge node to convert comau_msgs::ComauJointTrajectoryAction into control_msgs::FollowJointTrajectoryAction will be ready soon.

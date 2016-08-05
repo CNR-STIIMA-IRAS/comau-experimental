@@ -12,15 +12,15 @@ on a C4G machine, some modifications are needed.
   again all the PDL programs in order to restart the TCP/IP channels.  
 - If a PDL program crashes, the communication channel memory is not freed properly. Before restarting the driver, you must deactivate all the PDLs and erease all the program variables
   on the robot controller.  
-
-## ROS_COMAU_tcp_utils
-
-The code is a collection of the TCP/IP communication routines needed by the rest of the programs for data exchange.  
-
+  
 **Note:**  
 This is the code where changes are needed in order to use the driver on a Comau C4G controller.  
 Some builtin routines for TCP/IP communication have different names between the two controller versions (e.g. DV_CNTRL has to be substituted with DV4_CNTRL); refer to the PDL code manual 
 for further informations.  
+
+## ROS_COMAU_tcp_utils
+
+The code is a collection of the TCP/IP communication routines needed by the rest of the programs for data exchange.  
 
 ## ROS_COMAU_trajectory
 

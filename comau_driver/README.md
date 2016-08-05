@@ -117,3 +117,6 @@ The trajectory used in the example is defined in the config file `comau_driver/t
 
 - To stop the motion call the service `stop_motion` manually in the command shell.  
   `rosservice call /stop_motion {} `  
+
+**Note:**  
+> A bridge node to convert comau_msgs::ComauJointTrajectoryAction into control_msgs::FollowJointTrajectoryAction will be ready soon. 

@@ -62,7 +62,9 @@ This package contains the implementation of the ROS-Industrial standard for Coma
 Clone the repository into your catkin working directory and make it with ```catkin_make```. 
 
 **Note:**  
-> The ROS-I (industrial_core) package is needed.
+
+- The ROS-I (industrial_core) package is needed.
+- A bridge node to convert comau_msgs::ComauJointTrajectoryAction into control_msgs::FollowJointTrajectoryAction will be ready soon. 
 
 
 ## Developer Contact
@@ -75,4 +77,4 @@ Clone the repository into your catkin working directory and make it with ```catk
  
 _Software License Agreement (BSD License)_    
 _Copyright (c) 2016, National Research Council of Italy, Institute of Industrial Technologies and Automation_    
-_All rights reserved._    
+_All rights reserved._
