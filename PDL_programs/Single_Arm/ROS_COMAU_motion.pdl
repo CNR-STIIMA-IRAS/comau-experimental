@@ -131,7 +131,7 @@ BEGIN
 	execution_point := 0
 	move_rob := FALSE
 	motion_complete := FALSE
-	is_locked := FALSE 
+	is_locked := FALSE
 	is_moving := FALSE
 	execute_cancel_all := FALSE
 	
