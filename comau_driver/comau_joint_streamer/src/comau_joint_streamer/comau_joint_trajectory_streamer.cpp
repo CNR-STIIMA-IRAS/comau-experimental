@@ -461,7 +461,7 @@ int ComauJointTrajectoryStreamer::getTrajectorySts()
   int sts_;
   if ( this->trajectory_dwnl_complete_ && this->cancel_motion_ )
   {
-    std::cout << "Trajectory STATE 3" << std::endl;
+//     std::cout << "Trajectory STATE 3" << std::endl;
     sts_ = 3;
   } 
   else if ( this->trajectory_dwnl_complete_ && !this->cancel_motion_ ) 
@@ -470,7 +470,7 @@ int ComauJointTrajectoryStreamer::getTrajectorySts()
   }
   else if ( !this->trajectory_dwnl_complete_ && this->cancel_motion_ )
   {
-    std::cout << "Trajectory STATE 1" << std::endl;
+//     std::cout << "Trajectory STATE 1" << std::endl;
     sts_ = 1;
   }
   else

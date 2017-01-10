@@ -56,7 +56,7 @@ namespace ComauControllerPorts
 {
 enum ComauControllerPort
 {
-  TRJ_MOTION = 1212, MOTION_FEEDBACK = 1213
+  TRJ_MOTION = 1212, MOTION_FEEDBACK = 1213, ROBOT_STATUS = 1214
 };
 }
 typedef ComauControllerPorts::ComauControllerPort ComauControllerPort;
@@ -76,7 +76,7 @@ typedef enum ComauMsgType
   PING = 1,
   JNT_TRJ_PT_COMAU = 3001,
   TRJ_FINISHED = 3002,
-  ROBOT_STATUS = 3003,
+//   ROBOT_STATUS = 3003,
   MOTION_FEEDBACK = 3004,
   START_MOTION = 3010,
   STOP_MOTION = 3011,

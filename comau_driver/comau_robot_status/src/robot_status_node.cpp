@@ -39,19 +39,21 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *********************************************************************/
 
-#include <comau_driver/comau_joint_trajectory_action/comau_joint_trajectory_action.h>
+#include <industrial_robot_client/robot_state_interface.h>
+#include <comau_msgs/comau_simple_message.h>
 
-using comau::comau_joint_trajectory_action::ComauJointTrajectoryAction;
+using industrial_robot_client::robot_state_interface::RobotStateInterface;
 
 int main(int argc, char** argv)
 {
-  ROS_INFO("Starting Joint Trajectory Action Node");
-  
   // initialize node
-  ros::init(argc, argv, "comau_joint_trajectory_action_node");
+  ros::init(argc, argv, "robot_status_interface");
 
-  ComauJointTrajectoryAction action;
-  action.run();
-  
+  // launch the Robot State Interface connection/handlers
+  RobotStateInterface rsi;
+  if (rsi.init("",comau::ComauControllerPorts::ComauControllerPort::ROBOT_STATUS))
+  {
+    rsi.run();
+  }
   return 0;
 }

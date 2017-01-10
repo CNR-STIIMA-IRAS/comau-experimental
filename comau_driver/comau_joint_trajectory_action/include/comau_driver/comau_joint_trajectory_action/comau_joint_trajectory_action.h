@@ -53,6 +53,7 @@
 #include <comau_msgs/CmdJointTrjComau.h>
 #include <comau_msgs/ComauJointTrajectoryAction.h>
 #include <industrial_msgs/ServiceReturnCode.h>
+#include <control_msgs/FollowJointTrajectoryAction.h>
 
 namespace comau
 {
@@ -77,13 +78,17 @@ public:
   ~ComauJointTrajectoryAction();
 
   /**
-     * \brief Begin processing messages and publishing topics.
-     */
-    void run() { ros::spin(); }
+   * \brief Begin processing messages and publishing topics.
+   */
+  void run() { ros::spin(); }
 
 private:
 
-  typedef actionlib::SimpleActionServer<comau_msgs::ComauJointTrajectoryAction> JointTractoryActionServer;
+  typedef actionlib::SimpleActionServer<comau_msgs::ComauJointTrajectoryAction> ComauJointTractoryActionServer;
+  typedef actionlib::SimpleActionServer<control_msgs::FollowJointTrajectoryAction> JointTractoryActionServer;
+  
+  // default value for the fly_tolerance parameter, used in case of standard FollowJointTrajectoryAction 
+  const double DEFAULT_FLY_TOL = 1.0;
 
   /**
    * \brief Internal ROS node handle
@@ -95,7 +100,8 @@ private:
   /**
    * \brief Internal action server
    */
-  JointTractoryActionServer action_server_;
+  ComauJointTractoryActionServer comau_action_server_;
+  JointTractoryActionServer standard_action_server_;
   /**
    * \brief Cache of the current active goal
    */
@@ -116,7 +122,8 @@ private:
    * \param gh goal handle
    *
    */
-  void goalCB(const JointTractoryActionServer::GoalConstPtr& gh);
+  void comauGoalCB(const ComauJointTractoryActionServer::GoalConstPtr& gh);
+  void defaultGoalCB(const JointTractoryActionServer::GoalConstPtr& gh);
   
   };
 

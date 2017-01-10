@@ -33,6 +33,7 @@
   </group>
   
   <node pkg="comau_driver" type="motion_feedback_node" name="motion_feedback_node" output="screen"/>
+  <node pkg="comau_driver" type="robot_status_node" name="robot_status_node" output="screen"/>
   
 </launch>
 

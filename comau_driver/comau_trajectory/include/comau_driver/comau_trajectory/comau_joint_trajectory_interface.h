@@ -318,9 +318,8 @@ private:
   #endif
   
   static JointTrajPtComauMessage create_message(industrial::shared_types::shared_int arm_number, industrial::shared_types::shared_int seq, 
-                                                                          std::vector<industrial::shared_types::shared_real> velocity, 
-                                                                          std::vector<industrial::shared_types::shared_real> joint_pos, 
-                                                                          industrial::shared_types::shared_int digital_out);
+						industrial::shared_types::shared_real fly_tol, std::vector<industrial::shared_types::shared_real> velocity, 
+						std::vector<industrial::shared_types::shared_real> joint_pos, industrial::shared_types::shared_int digital_out);
 
   /**
    * \brief Callback function registered to ROS CmdJointTrjComau service

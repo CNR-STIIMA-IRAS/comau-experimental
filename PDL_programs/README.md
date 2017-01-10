@@ -32,7 +32,7 @@ different actions related to the reajectory handling (e.g. add a new point, chec
 ## ROS_COMAU_motion
 
 This is an holdable program where the motion along the trajectory is performed. Inside the code, all the motion commands of the driver are present.  
-The motion between the trajectory points (except the last one) is made by a MOVEFLY command with cartesian linear interpolation and tolerance on the position reach set to 1.  
+The motion between the trajectory points (except the last one) is made by a MOVEFLY command with cartesian linear interpolation and tolerance on the position reach set to the value defined in each point's definition.  
 
 **Note:**  
 Robot frames are not set to zero at the program beginnig, hence the interpolator will use the last frames set by the user.  
@@ -41,6 +41,11 @@ Robot frames are not set to zero at the program beginnig, hence the interpolator
 
 The program gives useful feedback about the robot motion. Data are passed to the ROS node via a TCP/IP connection on a different port respect to the one of the trajectory communication.  
 The data structure is based on the `MotionFeedbackComau.msg` message ([README](../comau_msgs/README.md)) plus a ROS-I standard header.  
+
+## ROS_COMAU_robot_status
+
+The program sends feedback about some important values of the controller state. The information are exchanged with a ROS node over a TCP/IP connection (the port used for this feedback is different from the ones of trajectory and motion_feedback communications).  
+The data structure is based on the standard ROS-I `RobotStatus.msg` message.  
 
 
 ## Developer Contact

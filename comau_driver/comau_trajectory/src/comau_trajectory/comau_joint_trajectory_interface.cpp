@@ -143,7 +143,7 @@ bool JointTrajectoryInterface::init(SmplMsgConnection* connection, const std::ve
   this->srv_start_motion_ = this->node_.advertiseService("start_motion", &JointTrajectoryInterface::startMotionCB, this);
   this->srv_stop_motion_ = this->node_.advertiseService("stop_motion", &JointTrajectoryInterface::stopMotionCB, this);
   this->srv_cancel_motion_ = this->node_.advertiseService("cancel_motion", &JointTrajectoryInterface::cancelMotionCB, this);
-  this->srv_joint_trajectory_ = this->node_.advertiseService("joint_path_command", &JointTrajectoryInterface::jointTrajectoryCB, this);
+  this->srv_joint_trajectory_ = this->node_.advertiseService("comau_joint_path_command", &JointTrajectoryInterface::jointTrajectoryCB, this);
 
   return true;
 }
@@ -204,18 +204,20 @@ bool JointTrajectoryInterface::trajectory_to_msgs(const comau_msgs::JointTrajCom
     return false;
   
   shared_int arm_number, digital_output, sequence;
+  shared_real fly_tolerance;
   std::vector<shared_real> velocity, joint_pos;
 
   for (size_t i=0; i<traj->points.size(); ++i)
   {
     arm_number = traj->points[i].arm_number;
     sequence = traj->points[i].sequence_number;
+    fly_tolerance = traj->points[i].fly_tolerance;
     velocity = traj->points[i].linear_velocity;
     joint_pos = traj->points[i].joint_positions;
     digital_output = traj->points[i].digital_output;
     
 
-    JointTrajPtComauMessage msg = create_message( arm_number, sequence, velocity, joint_pos, digital_output );
+    JointTrajPtComauMessage msg = create_message( arm_number, sequence, fly_tolerance, velocity, joint_pos, digital_output );
     msgs->push_back(msg);
   }
 
@@ -247,17 +249,40 @@ bool JointTrajectoryInterface::trajectory_to_msgs(const std::string traj, std::v
   }
   std::string tmp_str;
   shared_int arm_number, digital_output, sequence;
+  shared_real fly_tolerance;
   std::vector<shared_real> velocity, joint_pos;
   for (int i=0; i<nPoints; ++i)
   {
     tmp_str = traj+"/point_"+std::to_string(i);
-    ros::param::get(tmp_str+"/arm_number", arm_number);
-    ros::param::get(tmp_str+"/digital_output",digital_output);
-    ros::param::get(tmp_str+"/velocity",velocity);
-    ros::param::get(tmp_str+"/joint_position",joint_pos);
+    // retrive parameters values
+    if(!ros::param::get(tmp_str+"/arm_number", arm_number))
+    {
+      ROS_WARN("Arm number not defined for point_%d. Default value (1) set.", i);
+      arm_number = 1;
+    }
+    if(!ros::param::get(tmp_str+"/fly_tolerance", fly_tolerance))
+    {
+      ROS_WARN("Fly tolerance not defined for point_%d. Default value (1.0) set.", i);
+      fly_tolerance = 1.0;
+    }
+    if(!ros::param::get(tmp_str+"/digital_output",digital_output))
+    {
+      ROS_WARN("Digital output not defined for point_%d. Default value (0) set.", i);
+      digital_output = 0;
+    }
+    if(!ros::param::get(tmp_str+"/velocity",velocity))
+    {
+      ROS_ERROR("Velocity not defined for point_%d. Trajectory loading aborted!", i);
+      return false;
+    }
+    if(!ros::param::get(tmp_str+"/joint_position",joint_pos))
+    {
+      ROS_ERROR("Joint position not defined for point_%d. Trajectory loading aborted!", i);
+      return false;
+    }
     sequence = i+1;
     
-    JointTrajPtComauMessage msg = create_message(arm_number, sequence, velocity, joint_pos, digital_output);
+    JointTrajPtComauMessage msg = create_message(arm_number, sequence, fly_tolerance, velocity, joint_pos, digital_output);
     msgs->push_back(msg);
   }
 
@@ -313,7 +338,7 @@ bool JointTrajectoryInterface::select(const std::vector<std::string>& ros_joint_
   return true;
 }
 
-JointTrajPtComauMessage JointTrajectoryInterface::create_message(shared_int arm_number, shared_int seq, std::vector<shared_real> velocity, 
+JointTrajPtComauMessage JointTrajectoryInterface::create_message(shared_int arm_number, shared_int seq, shared_real fly_tol, std::vector<shared_real> velocity, 
                                                                  std::vector<shared_real> joint_pos, shared_int digital_out)
 {
   std::vector<industrial::joint_data::JointData> pos(MAX_NUM_ARMS);
@@ -356,7 +381,7 @@ JointTrajPtComauMessage JointTrajectoryInterface::create_message(shared_int arm_
   }      
 
   rbt_JointTrajPtComau pt;
-  pt.init(arm_number, comau::simple_message::ComauQueueStatus::INVALID, seq, vel, pos, digital_out);
+  pt.init(arm_number, comau::simple_message::ComauQueueStatus::INVALID, seq, fly_tol, vel, pos, digital_out);
 
   JointTrajPtComauMessage msg;
   msg.init(pt);

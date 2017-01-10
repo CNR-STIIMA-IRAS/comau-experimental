@@ -71,31 +71,33 @@ void JointTrajPtComau::init()
   this->sequence_ = 0;
   this->arm_number_ = 0;
   this->queue_status_ = 0;
+  this->fly_tolerance_ = 0;
   this->digital_output_ = 0;
 }
 
-void JointTrajPtComau::init(shared_int arm_number, shared_int queue_status, shared_int sequence, 
-                            std::vector<shared_real> & linear_velocity, std::vector<JointData> & position, 
-                            shared_int digital_output)
+void JointTrajPtComau::init(shared_int arm_number, shared_int queue_status, shared_int sequence, shared_real fly_tolerance,
+                            std::vector<shared_real> & linear_velocity, std::vector<JointData> & position, shared_int digital_output)
 {
   ROS_ASSERT(position.size() == MAX_NUM_ARMS);
   ROS_ASSERT(linear_velocity.size() == MAX_NUM_ARMS);
   this->init();
-  this->setSequence(sequence);
   this->setArmNumber(arm_number);
   this->setQueueStatus(queue_status);
-  this->setDigitalOutputs(digital_output);
-  this->setJointPosition(position);
+  this->setSequence(sequence);
+  this->setFlyTolerance(fly_tolerance);
   this->setVelocity(linear_velocity);
+  this->setJointPosition(position);
+  this->setDigitalOutputs(digital_output);
 }
 
 void JointTrajPtComau::copyFrom(JointTrajPtComau &src)
 {
-  this->setSequence(src.getSequence());
-  src.getJointPosition(this->joint_position_);
-  src.getVelocity(this->velocity_);
   this->setArmNumber(src.getArmNumber());
   this->setQueueStatus(src.getQueueStatus());
+  this->setSequence(src.getSequence());
+  this->setFlyTolerance(src.getFlyTolerance());
+  src.getVelocity(this->velocity_);
+  src.getJointPosition(this->joint_position_);
   this->setDigitalOutputs(src.getDigitalOutputs());
 }
 
@@ -107,8 +109,9 @@ bool JointTrajPtComau::operator==(JointTrajPtComau &rhs)
     rtn = rtn && (this->joint_position_.at(i) == rhs.joint_position_.at(i));
   for(int i=0;i<MAX_NUM_ARMS;i++)
     rtn = rtn && (this->velocity_.at(i) == rhs.velocity_.at(i));
-  rtn = rtn && this->sequence_ == rhs.sequence_ && this->arm_number_ == rhs.arm_number_ 
-        && this->queue_status_ == rhs.queue_status_ && this->digital_output_ == rhs.digital_output_;
+  rtn = rtn && this->sequence_ == rhs.sequence_ && this->fly_tolerance_ == rhs.fly_tolerance_ 
+	&& this->arm_number_ == rhs.arm_number_ && this->queue_status_ == rhs.queue_status_ 
+	&& this->digital_output_ == rhs.digital_output_;
         
   return rtn;
 }
@@ -125,35 +128,43 @@ bool JointTrajPtComau::load(industrial::byte_array::ByteArray *buffer)
     {
       if (buffer->load(this->sequence_))
       {
-        for(int i=0;i<MAX_NUM_ARMS;i++)
-        {
-          if (!buffer->load(this->velocity_.at(i)))
-          {
-            rtn = false;
-            LOG_ERROR("Failed to load joint traj. pt. linear velocity");
-          }
-        }
-        for(int i=0;i<MAX_NUM_ARMS;i++)
-        {
-          if (!this->joint_position_.at(i).load(buffer))
-          {
-            rtn = false;
-            LOG_ERROR("Failed to load joint traj. pt. position data");
-          }
-        }
-        if (rtn && buffer->load(this->digital_output_))
-        {
-          LOG_COMM("Trajectory point successfully loaded");
-          rtn = true;
-        }
-        else
-        {
-          if(rtn)
-          {
-            rtn = false;
-            LOG_ERROR("Failed to load joint traj. pt. digital outputs");
-          }
-        }
+	if (buffer->load(this->fly_tolerance_))
+	{
+	  for(int i=0;i<MAX_NUM_ARMS;i++)
+	  {
+	    if (!buffer->load(this->velocity_.at(i)))
+	    {
+	      rtn = false;
+	      LOG_ERROR("Failed to load joint traj. pt. linear velocity");
+	    }
+	  }
+	  for(int i=0;i<MAX_NUM_ARMS;i++)
+	  {
+	    if (!this->joint_position_.at(i).load(buffer))
+	    {
+	      rtn = false;
+	      LOG_ERROR("Failed to load joint traj. pt. position data");
+	    }
+	  }
+	  if (rtn && buffer->load(this->digital_output_))
+	  {
+	    LOG_COMM("Trajectory point successfully loaded");
+	    rtn = true;
+	  }
+	  else
+	  {
+	    if(rtn)
+	    {
+	      rtn = false;
+	      LOG_ERROR("Failed to load joint traj. pt. digital outputs");
+	    }
+	  }
+	}
+	else
+	{
+	  rtn = false;
+	  LOG_ERROR("Failed to load joint traj. pt. fly tolerance");
+	}
       }
       else
       {
@@ -200,33 +211,41 @@ bool JointTrajPtComau::unload(industrial::byte_array::ByteArray *buffer)
         LOG_ERROR("Failed to load joint traj. pt. linear velocity");
       }
     }
-    if (rtn && buffer->unload(this->sequence_))
+    if (rtn && buffer->unload(this->fly_tolerance_))
     {
-      if (buffer->unload(this->queue_status_))
+      if (rtn && buffer->unload(this->sequence_))
       {
-        if (buffer->unload(this->arm_number_))
-        {
-          rtn = true;
-          LOG_COMM("Joint traj. pt successfully unloaded");
-        }
-        else
-        {
-          LOG_ERROR("Failed to unload joint traj. pt. arm number");
-          rtn = false;
-        }
+	if (buffer->unload(this->queue_status_))
+	{
+	  if (buffer->unload(this->arm_number_))
+	  {
+	    rtn = true;
+	    LOG_COMM("Joint traj. pt successfully unloaded");
+	  }
+	  else
+	  {
+	    LOG_ERROR("Failed to unload joint traj. pt. arm number");
+	    rtn = false;
+	  }
+	}
+	else
+	{
+	  LOG_ERROR("Failed to unload joint traj. pt. queue status");
+	  rtn = false;
+	}
       }
       else
       {
-        LOG_ERROR("Failed to unload joint traj. pt. queue status");
-        rtn = false;
+	LOG_ERROR("Failed to unload joint traj. pt. sequence number");
+	rtn = false;
       }
     }
     else
     {
       if (rtn)
       {
-        LOG_ERROR("Failed to unload joint traj. pt. sequence number");
-        rtn = false;
+	LOG_ERROR("Failed to unload joint traj. pt. fly tolerance");
+	rtn = false;
       }
     }
   }

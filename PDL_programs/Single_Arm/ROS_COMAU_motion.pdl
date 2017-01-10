@@ -1,4 +1,4 @@
-PROGRAM ROS_COMAU_motion HOLD, &PA
+PROGRAM ROS_COMAU_motion HOLD, &PA, PROG_ARM=1
   -------------------------------------------------------------------------------
   -- Alberto Marini
   -- alberto.marini@itia.cnr.it
@@ -13,6 +13,7 @@ TYPE
 		$LIN_SPD
 		digital_out : INTEGER
 		sequence_num : INTEGER
+		fly_tol : REAL 
 	ENDNODEDEF  
 	
 CONST
@@ -92,6 +93,7 @@ BEGIN
 	is_locked := TRUE
 	is_moving := FALSE
 	-- WRITE LUN_CRT('Condition 2 - Locked', NL)
+SIGNAL sem_queue
 	ENABLE CONDITION[1]
 END condition2
 
@@ -138,7 +140,16 @@ BEGIN
 	--$BASE := POS(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, '')
 	--$UFRAME := POS(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, '')
 	--$TOOL := POS(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, '')
-	$PROG_SPD_OVR := 100
+
+
+ 	$ARM_DATA[1].ARM_OVR := 100
+ 	$PROG_SPD_OVR := 100
+ 	$PROG_ACC_OVR := 100
+ 	$PROG_DEC_OVR := 100
+ 	$ARM_DATA[1].ARM_SPD_OVR := 100
+ 	$ARM_DATA[1].ARM_ACC_OVR := 100
+ 	$ARM_DATA[1].ARM_DEC_OVR := 100
+
 	--$JNT_MTURN := FALSE
 	$TURN_CARE := TRUE
 	
@@ -155,38 +166,43 @@ BEGIN
 	RESUME
 	
 	REPEAT
-		IF ( (PATH_LEN(traj_arm1)=0) OR (move_rob=FALSE) ) THEN
+WAIT sem_queue
+		IF ( (PATH_LEN(traj_arm1)=0) OR (move_rob=FALSE) OR (idx_motion1 > PATH_LEN(traj_arm1)) OR (idx_queue1 > PATH_LEN(traj_arm1)) ) THEN
+SIGNAL sem_queue
 			DELAY 10
 		ELSE
 			IF ( (motion_complete=TRUE) )  THEN
-				DELAY 10
+				-- DELAY 10
 				
-				WAIT sem_queue
+				-- WAIT sem_queue
 
 				IF (traj_arm1.NODE[idx_motion1].sequence_num < traj_arm1.NODE[idx_queue1].sequence_num) THEN
 					motion_complete := FALSE
+					SIGNAL sem_queue
 					WRITE LUN_CRT(' motion_complete ', motion_complete, NL)
 						
 				ELSE 
 					IF ( traj_arm1.NODE[idx_queue1].sequence_num = 1 ) AND (trj_complete) AND (new_trj) THEN
 						motion_complete := FALSE
+						SIGNAL sem_queue
 						WRITE LUN_CRT(' trajectory completed! ', NL)
 					ELSE	
+						SIGNAL sem_queue
 						DELAY 10
 					ENDIF
 				ENDIF
 
-				SIGNAL sem_queue
+				-- SIGNAL sem_queue
 				DELAY 10
 			ELSE 
-				WAIT sem_queue
+				-- WAIT sem_queue
 
 				IF (traj_arm1.NODE[idx_motion1].sequence_num < traj_arm1.NODE[idx_queue1].sequence_num) AND (move_rob=TRUE) THEN
 					-- WRITE LUN_CRT('MOVEFLY Motion seq num: ',traj_arm1.NODE[idx_motion1].sequence_num,' With idx_motion1: ',idx_motion1, ' and idx_queue1: ',idx_queue1, NL)
 					
 					is_moving := ( NOT is_locked )
 					MOVEFLY LINEAR TO traj_arm1.NODE[idx_motion1].$MAIN_JNTP ADVANCE,
-						WITH $FLY_TYPE = FLY_CART, $MOVE_TYPE = LINEAR, $SPD_OPT = SPD_LIN, 
+						WITH $FLY_TYPE = FLY_CART, $MOVE_TYPE = LINEAR, $SPD_OPT = SPD_LIN, $FLY_TRAJ = FLY_TOL, $STRESS_PER = 50, $FLY_DIST = traj_arm1.NODE[idx_motion1].fly_tol,
 						WITH $LIN_SPD = traj_arm1.NODE[idx_motion1].$LIN_SPD, $TERM_TYPE = COARSE, $TOL_COARSE = 1, 
 					ENDMOVE
 					-- WRITE LUN_CRT ('[ROS_COMAU_MOTION] LAST EXECUTED NODE (MOVEFLY): ', idx_motion1, '   LIN_SPD: ', traj_arm1.NODE[idx_motion1].$LIN_SPD, NL)	
@@ -198,7 +214,7 @@ BEGIN
 						idx_motion1 := idx_motion1 MOD MAX_QUEUE_LENGTH
 					ENDIF
 					-- WRITE LUN_CRT('END MOVEFLY Motion seq num: ',traj_arm1.NODE[idx_motion1].sequence_num,' With idx_motion1: ',idx_motion1, ' and idx_queue1: ',idx_queue1, NL, NL)
-					
+					SIGNAL sem_queue
 				ELSE
 					IF (traj_arm1.NODE[idx_motion1].sequence_num = traj_arm1.NODE[idx_queue1].sequence_num) AND (move_rob=TRUE) THEN
 						-- WRITE LUN_CRT('MOVE Motion seq num: ',traj_arm1.NODE[idx_motion1].sequence_num,' With idx_motion1: ',idx_motion1, ' and idx_queue1: ',idx_queue1, NL)
@@ -215,9 +231,11 @@ BEGIN
 						motion_complete := TRUE
 					
 						-- WRITE LUN_CRT('END MOVE Motion seq num: ',traj_arm1.NODE[idx_motion1].sequence_num,' With idx_motion1: ', idx_motion1, ' Queue length: ',idx_queue1, NL, NL)
+						SIGNAL sem_queue
 						DELAY 50
 
 					ELSE
+						SIGNAL sem_queue
 						DELAY 10
 					ENDIF
 				ENDIF

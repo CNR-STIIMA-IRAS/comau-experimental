@@ -1,0 +1,189 @@
+PROGRAM ROS_COMAU_robot_status NOHOLD, PROG_ARM=1
+  -------------------------------------------------------------------------------
+  -- Alberto Marini
+  -- alberto.marini@itia.cnr.it
+  -------------------------------------------------------------------------------
+  -- Brief:
+  --    Robot status informations over TCP/IP communication
+  -------------------------------------------------------------------------------
+  
+TYPE
+	ROS_message_header = RECORD 
+		length : INTEGER								-- Length of the message (header + data) in bytes
+		msg_type : INTEGER								-- INVALID=0; PING=1; ....
+		comm_type : INTEGER								-- INVALID=0; TOPIC=1; SERVICE_REQUEST=2; SERVICE_REPLY=3;
+		reply_code : INTEGER								-- INVALID=0; SUCCESS=1; FAILURE=2;
+	ENDRECORD
+	
+	ROS_comau_robot_status_msg = RECORD
+		length : INTEGER								-- Length of the message (header + data) in bytes
+		msg_type : INTEGER								-- INVALID=0; PING=1; ....
+		comm_type : INTEGER								-- INVALID=0; TOPIC=1; SERVICE_REQUEST=2; SERVICE_REPLY=3;
+		reply_code : INTEGER								-- INVALID=0; SUCCESS=1; FAILURE=2;
+		drives_powered : INTEGER							-- INVALID=-1; DRIVE_OFF=0; DRIVE_ON=1;
+		e_stopped : INTEGER								-- INVALID=-1; FALSE=0; TRUE=1;
+		error_code : INTEGER						
+		in_error : INTEGER								-- INVALID=-1; FALSE=0; TRUE=1;
+		in_motion : INTEGER								-- INVALID=-1; FALSE=0; TRUE=1;
+		mode : INTEGER									-- INVALID=-1; MANUAL=1; AUTO=2;
+		motion_possible : INTEGER							-- INVALID=-1; FALSE=0; TRUE=1;
+	ENDRECORD
+	
+	
+
+CONST
+  -- DV_TCP_GET = 27           -- documentazione comau
+  -- DV_TCP_ACCEPT = 29        -- documentazione comau (open a server)
+  -- DV_TCP_CONNECT = 30       -- documentazione comau (open a client)
+  -- DV_TCP_DISCONNECT = 31    -- documentazione comau
+	
+	PORT_ROB_STS = 1214
+	VERBOSE = 0
+	
+  
+VAR
+	lun_tcp_rs : INTEGER
+	comm_success : BOOLEAN
+	shutdown : BOOLEAN EXPORTED FROM ROS_COMAU_trajectory
+	tmp_msg : ROS_comau_robot_status_msg
+	is_moving : BOOLEAN EXPORTED FROM ROS_COMAU_motion
+
+	
+	
+ROUTINE status_encode 			 EXPORTED FROM ROS_COMAU_robot_status
+ROUTINE status_decode : BOOLEAN 	 EXPORTED FROM ROS_COMAU_robot_status
+
+ROUTINE ru_get(vi_netlun, vi_scrlun, verbose : INTEGER) EXPORTED FROM ROS_COMAU_tcp_utils
+ROUTINE tcp_accept(port, vi_netlun, vi_scrlun, verbose : INTEGER) EXPORTED FROM ROS_COMAU_tcp_utils
+
+ROUTINE status_encode
+BEGIN
+	tmp_msg.length := 40  		    -- Bytes
+	tmp_msg.msg_type := 13   	    -- ROBOT_STATUS=13 (STANDARD)
+	tmp_msg.comm_type := 2 		    -- SERVICE_REQUEST=2
+	tmp_msg.reply_code := 0 	    -- INVALID=0; SUCCESS=1; FAILURE=2;
+	
+	IF $SDO[1]=TRUE THEN
+		tmp_msg.drives_powered := 1
+	ELSE 
+		tmp_msg.drives_powered := 0
+	ENDIF 
+	IF $SDI[17]=FALSE THEN
+		tmp_msg.e_stopped := 1
+	ELSE 
+		tmp_msg.e_stopped := 0
+	ENDIF
+	IF $GO[59]=TRUE THEN
+		tmp_msg.in_error := 1
+		IF $SYS_ERROR<>0 THEN
+			tmp_msg.error_code := $SYS_ERROR
+		ELSE
+			IF $ERROR<>0 THEN
+				tmp_msg.error_code := $ERROR
+			ELSE 	
+				tmp_msg.error_code := 0
+			ENDIF
+		ENDIF
+	ELSE 
+		tmp_msg.in_error := 0
+		tmp_msg.error_code := 0
+	ENDIF
+	
+	IF is_moving=TRUE THEN
+		tmp_msg.in_motion := 1
+	ELSE
+		tmp_msg.in_motion := 0
+	ENDIF
+	
+	IF $GO[48]=TRUE THEN
+	        tmp_msg.mode := 1                 		-- MANUAL
+	ELSE
+		IF (($GO[46]=TRUE) OR ($GO[47]=TRUE)) THEN
+		      tmp_msg.mode := 2		    		-- AUTO 
+		ELSE
+		      tmp_msg.mode := -1			-- INVALID
+		ENDIF
+	ENDIF
+	IF ((tmp_msg.in_error<>1) AND (tmp_msg.drives_powered=1) AND (tmp_msg.mode=2)) THEN
+		tmp_msg.motion_possible := 1 
+	ELSE 
+		tmp_msg.motion_possible := 0
+	ENDIF
+	
+END status_encode
+
+ROUTINE status_decode : BOOLEAN
+VAR
+	i : INTEGER
+	int_field : INTEGER
+	header : ROS_message_header
+BEGIN
+	READ lun_tcp_rs(header.length::4, header.msg_type::4, header.comm_type::4, header.reply_code::4)
+	FOR i:=1 TO 7 DO       
+		READ lun_tcp_rs(int_field::4)
+	ENDFOR
+	
+	IF header.reply_code=1 THEN
+		RETURN (TRUE)
+	ELSE
+		RETURN (FALSE)
+	ENDIF
+END status_decode
+	
+
+--------------
+---- MAIN ----
+--------------	
+	
+BEGIN
+	-- DIR_SET('UD:\\UNIBS\\Marini\\Driver');   -- Set working directory
+	-- SYS_CALL('ML' ,'ROS_COMAU_tcp_utils');        -- Memory Load
+
+	comm_success := TRUE
+
+	IF VAR_UNINIT(is_moving) THEN
+    	  WRITE LUN_CRT (NL, 'Inizializzo variabile is_moving := FALSE', NL)
+    	  is_moving := FALSE	
+	ENDIF
+	IF VAR_UNINIT(shutdown) THEN
+    	  WRITE LUN_CRT (NL, 'Inizializzo variabile shutdown := FALSE', NL)
+    	  shutdown := FALSE	
+	ENDIF
+
+	WRITE LUN_CRT (NL, 'Starting robot status...', NL)
+	
+	WRITE LUN_CRT (NL, '[ROS_COMAU_robot_status] Connection starting...', NL)
+	OPEN FILE lun_tcp_rs ('NETT:', 'rw'),
+		WITH $FL_BINARY = TRUE, 
+	ENDOPEN
+	tcp_accept (PORT_ROB_STS, lun_tcp_rs, LUN_CRT, VERBOSE)     --------------------------
+	-- tcp_accept ( 1214, lun_tcp_rs, -1, VERBOSE)
+	
+	WRITE LUN_CRT (NL,'Starting cycle...',NL)
+	REPEAT
+		IF VERBOSE=1 THEN
+			ru_get((lun_tcp_rs), LUN_CRT, VERBOSE)       --------------------------------
+		ENDIF
+		
+		status_encode
+		
+		WRITE lun_tcp_rs(tmp_msg.length, tmp_msg.msg_type, tmp_msg.comm_type, tmp_msg.reply_code, tmp_msg.drives_powered, tmp_msg.e_stopped, tmp_msg.error_code, tmp_msg.in_error, tmp_msg.in_motion, tmp_msg.mode, tmp_msg.motion_possible)
+		
+		DELAY 10
+		
+		comm_success := status_decode
+		IF comm_success=FALSE THEN
+			WRITE LUN_CRT('[ROS_COMAU_robot_status]  Data failure!', NL)
+			--BREAK
+		ENDIF
+		
+		DELAY 10
+		
+	UNTIL shutdown
+	
+	DV_CNTRL(31, (lun_tcp_rs))
+	DELAY 1000
+	CLOSE FILE lun_tcp_rs
+	WRITE LUN_CRT('[ROS_COMAU_robot_status]  Connection closed.', NL)
+	
+END ROS_COMAU_robot_status 

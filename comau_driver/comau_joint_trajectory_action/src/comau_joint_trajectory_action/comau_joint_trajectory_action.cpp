@@ -53,26 +53,30 @@ namespace comau_joint_trajectory_action
 // const double JointTrajectoryAction::DEFAULT_GOAL_THRESHOLD_ = 0.01;
 
 ComauJointTrajectoryAction::ComauJointTrajectoryAction() :
-    action_server_(node_, "joint_trajectory_action", boost::bind(&ComauJointTrajectoryAction::goalCB, this, _1),
-                   /*boost::bind(&ComauJointTrajectoryAction::cancelCB, this, _1),*/ false)
+    comau_action_server_(node_, "comau_joint_trajectory_action", boost::bind(&ComauJointTrajectoryAction::comauGoalCB, this, _1),
+                   /*boost::bind(&ComauJointTrajectoryAction::cancelCB, this, _1),*/ false),
+    standard_action_server_(node_, "joint_trajectory_action", boost::bind(&ComauJointTrajectoryAction::defaultGoalCB, this, _1), false)
 {
   ros::NodeHandle pn("~");
   
   if (!industrial_utils::param::getJointNames("controller_joint_names", "robot_description", joint_names_))
     ROS_ERROR("Failed to initialize joint_names.");
   
-  comau_trajectory_client_ = pn.serviceClient<comau_msgs::CmdJointTrjComau>("/joint_path_command");
+  comau_trajectory_client_ = pn.serviceClient<comau_msgs::CmdJointTrjComau>("/comau_joint_path_command");
   
   ROS_INFO("Action Server on topic /joint_trajectory_action created! ");
   
-  action_server_.start();
+  comau_action_server_.start();
+  standard_action_server_.start();
+  if (comau_action_server_.isActive() && standard_action_server_.isActive())
+    ROS_INFO("Action Server on topic /joint_trajectory_action started! ");
 }
 
 ComauJointTrajectoryAction::~ComauJointTrajectoryAction()
 {
 }
 
-void ComauJointTrajectoryAction::goalCB(const JointTractoryActionServer::GoalConstPtr & gh)
+void ComauJointTrajectoryAction::comauGoalCB(const ComauJointTractoryActionServer::GoalConstPtr & gh)
 {
   ROS_INFO("Received new goal");
 
@@ -91,13 +95,13 @@ void ComauJointTrajectoryAction::goalCB(const JointTractoryActionServer::GoalCon
       if ( comau_trajectory_client_.call( client_srv ) )
       {
         res.result = client_srv.response.code;
-        action_server_.setSucceeded(res);
+        comau_action_server_.setSucceeded(res);
       }
       else
       {
         ROS_ERROR("Fail to call client_srv");
         res.result.val = industrial_msgs::ServiceReturnCode::FAILURE;
-        action_server_.setAborted(res);
+        comau_action_server_.setAborted(res);
       }    
     }
     else
@@ -105,7 +109,7 @@ void ComauJointTrajectoryAction::goalCB(const JointTractoryActionServer::GoalCon
       ROS_ERROR("Joint trajectory action failing on invalid joints");
       comau_msgs::ComauJointTrajectoryResult res;
       res.result.val = industrial_msgs::ServiceReturnCode::FAILURE;
-      action_server_.setAborted(res, "Joint names do not match");
+      comau_action_server_.setAborted(res, "Joint names do not match");
     }
   }
   else
@@ -113,7 +117,73 @@ void ComauJointTrajectoryAction::goalCB(const JointTractoryActionServer::GoalCon
     ROS_ERROR("Joint trajectory action failed on empty trajectory");
     comau_msgs::ComauJointTrajectoryResult res;
     res.result.val = industrial_msgs::ServiceReturnCode::FAILURE;
-    action_server_.setAborted(res, "Empty trajectory");
+    comau_action_server_.setAborted(res, "Empty trajectory");
+  }
+
+  return;
+}
+
+void ComauJointTrajectoryAction::defaultGoalCB(const JointTractoryActionServer::GoalConstPtr & gh)
+{
+  ROS_INFO("Received new goal");
+
+  if (!gh.get()->trajectory.points.empty())
+  {
+    if (industrial_utils::isSimilar(joint_names_, gh.get()->trajectory.joint_names))
+    {
+//       gh.setAccepted();
+//       active_goal_ = gh;   
+      current_traj_.header = gh.get()->trajectory.header;
+      current_traj_.joint_names = gh.get()->trajectory.joint_names;
+      current_traj_.points.resize(gh.get()->trajectory.points.size());
+      for (int i=0;i<gh.get()->trajectory.points.size();i++)
+      {
+	current_traj_.points.at(i).arm_number = 1;
+	current_traj_.points.at(i).sequence_number = i;
+	current_traj_.points.at(i).fly_tolerance = DEFAULT_FLY_TOL;
+	current_traj_.points.at(i).linear_velocity.resize(gh.get()->trajectory.points.at(i).velocities.size());
+	for (int j=0;j<gh.get()->trajectory.points.at(i).velocities.size();j++)
+	  current_traj_.points.at(i).linear_velocity[j] = gh.get()->trajectory.points.at(i).velocities[j];
+	current_traj_.points.at(i).joint_positions.resize(gh.get()->trajectory.points.at(i).positions.size());
+	for (int j=0;j<gh.get()->trajectory.points.at(i).positions.size();j++)
+	  current_traj_.points.at(i).joint_positions[j] = gh.get()->trajectory.points.at(i).positions[j];
+      }
+      
+      
+      comau_msgs::CmdJointTrjComau client_srv;
+      client_srv.request.trajectory = current_traj_;
+      
+      control_msgs::FollowJointTrajectoryResult res;
+
+      if ( comau_trajectory_client_.call( client_srv ) )
+      {
+	res.error_code = 0;
+        standard_action_server_.setSucceeded(res);
+      }
+      else
+      {
+        ROS_ERROR("Fail to call client_srv");
+        res.error_code = -1;  //gestire i vari tipi di errore 
+        res.error_string = "Fail to call client_srv";
+        standard_action_server_.setAborted(res, "Fail to call client_srv");
+      }    
+    }
+    else
+    {
+      ROS_ERROR("Joint trajectory action failing on invalid joints");
+      control_msgs::FollowJointTrajectoryResult res;
+      res.error_code = -2; 
+      res.error_string = "Invalid joint names";
+      standard_action_server_.setAborted(res, "Joint names do not match");
+    }
+  }
+  else
+  {
+    ROS_ERROR("Joint trajectory action failed on empty trajectory");
+    control_msgs::FollowJointTrajectoryResult res;
+    res.error_code = -1;
+    res.error_string = "Empty trajectory";
+    standard_action_server_.setAborted(res, "Empty trajectory");
   }
 
   return;

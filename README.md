@@ -64,7 +64,6 @@ Clone the repository into your catkin working directory and make it with ```catk
 **Note:**  
 
 - The ROS-I (industrial_core) package is needed.
-- A bridge node to convert comau_msgs::ComauJointTrajectoryAction into control_msgs::FollowJointTrajectoryAction will be ready soon. 
 
 
 ## Developer Contact

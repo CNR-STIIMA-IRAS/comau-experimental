@@ -1,4 +1,4 @@
-PROGRAM ROS_COMAU_motion_feedback NOHOLD
+PROGRAM ROS_COMAU_motion_feedback NOHOLD, PROG_ARM=1
   -------------------------------------------------------------------------------
   -- Alberto Marini
   -- alberto.marini@itia.cnr.it
@@ -55,8 +55,8 @@ VAR
 	timer_idx : INTEGER EXPORTED FROM ROS_COMAU_motion_feedback
 	is_moving : BOOLEAN EXPORTED FROM ROS_COMAU_motion
 	
-ROUTINE feedback_encode 		-- EXPORTED FROM ROS_COMAU_motion_feedback
-ROUTINE feedback_decode : BOOLEAN 	-- EXPORTED FROM ROS_COMAU_motion_feedback
+ROUTINE feedback_encode 		 EXPORTED FROM ROS_COMAU_motion_feedback
+ROUTINE feedback_decode : BOOLEAN 	 EXPORTED FROM ROS_COMAU_motion_feedback
 
 ROUTINE ru_get(vi_netlun, vi_scrlun, verbose : INTEGER) EXPORTED FROM ROS_COMAU_tcp_utils
 ROUTINE tcp_accept(port, vi_netlun, vi_scrlun, verbose : INTEGER) EXPORTED FROM ROS_COMAU_tcp_utils
@@ -128,7 +128,6 @@ END feedback_decode
 --------------	
 	
 BEGIN
-	-- DIR_SET('UD:\\UNIBS\\Marini\\Driver');   -- Set working directory
 	-- SYS_CALL('ML' ,'ROS_COMAU_tcp_utils');        -- Memory Load
 
 	comm_success := TRUE

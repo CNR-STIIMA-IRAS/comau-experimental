@@ -76,6 +76,7 @@ namespace joint_traj_pt_comau
  *   arm_number          (industrial::shared_types::shared_int)    4  bytes
  *   queue_status        (industrial::shared_types::shared_int)    4  bytes
  *   sequence_number     (industrial::shared_types::shared_int)    4  bytes
+ *   fly_tolerance       (industrial::shared_types::shared_real)   4  bytes
  *   linear_velocity     (industrial::shared_types::shared_real)   8  bytes
  *   joint_positions     (industrial::shared_types::shared_real)   80 bytes
  *   digital_output      (industrial::shared_types::shared_int)    4  bytes
@@ -112,7 +113,8 @@ public:
    *
    */
   void init(industrial::shared_types::shared_int arm_number, industrial::shared_types::shared_int queue_status, 
-            industrial::shared_types::shared_int sequence, std::vector<industrial::shared_types::shared_real> & linear_velocity,
+            industrial::shared_types::shared_int sequence, industrial::shared_types::shared_real fly_tolerance,
+	    std::vector<industrial::shared_types::shared_real> & linear_velocity,
             std::vector<industrial::joint_data::JointData> & position, industrial::shared_types::shared_int digital_output);
 
   /**
@@ -238,6 +240,26 @@ public:
   {
     return this->digital_output_;
   }
+   
+  /**
+   * \brief Sets the tolerance of the movefly at this point
+   *
+   * \param fly_tolerance value
+   */
+  void setFlyTolerance(industrial::shared_types::shared_real fly_tolerance)
+  {
+    this->fly_tolerance_ = fly_tolerance;
+  }
+  
+  /**
+   * \brief Returns the tolerance of the movefly at this point
+   *
+   * \return fly tolerance parameter value
+   */
+  industrial::shared_types::shared_real getFlyTolerance()
+  {
+    return this->fly_tolerance_;
+  }
 
   /**
    * \brief Copies the passed in value
@@ -258,7 +280,7 @@ public:
   bool unload(industrial::byte_array::ByteArray *buffer);
   unsigned int byteLength()
   {
-    return 4*sizeof(industrial::shared_types::shared_int) + MAX_NUM_ARMS*(industrial::shared_types::shared_real)
+    return 4*sizeof(industrial::shared_types::shared_int) + sizeof(industrial::shared_types::shared_real) + MAX_NUM_ARMS*(industrial::shared_types::shared_real)
         + MAX_NUM_ARMS*this->joint_position_.at(0).byteLength();
   }
 
@@ -285,6 +307,10 @@ private:
    * \brief trajectory sequence number
    */
   industrial::shared_types::shared_int sequence_;
+  /**
+   * \brief tolerance of the movefly command for the point
+   */
+  industrial::shared_types::shared_real fly_tolerance_;
   /**
    * \brief tcp linear velocity for each arm
    */

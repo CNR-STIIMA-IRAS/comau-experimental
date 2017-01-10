@@ -113,33 +113,9 @@ public:
     return this->feedback_.byteLength();
   }
 
-  /**
-   * \brief Gets the communication type of the message
-   * 
-   * \return the value of the comm_type parameter (refer to simple_message::CommTypes::CommType)
-   */
-  int getCommType() const
-  {
-    return comm_type_;
-  }
+
   
   comau::motion_feedback_comau::MotionFeedbackComau feedback_;
-
-protected:
-
-  /**
-  * \brief Sets the communication type of the message
-  *
-  * \param comm_type: value of the comm_type parameter (refer to simple_message::CommTypes::CommType)
-  */
-  void setCommType(int comm_type = industrial::simple_message::StandardMsgTypes::INVALID)
-  {
-    this->comm_type_ = comm_type;
-  }
-  
-private:
-  
-  int comm_type_;
 
 };
 

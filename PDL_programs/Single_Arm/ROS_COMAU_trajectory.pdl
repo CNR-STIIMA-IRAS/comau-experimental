@@ -1,4 +1,4 @@
-PROGRAM ROS_COMAU_trajectory NOHOLD, DETACH
+PROGRAM ROS_COMAU_trajectory NOHOLD, DETACH, PROG_ARM=1
   -------------------------------------------------------------------------------
   -- Alberto Marini
   -- alberto.marini@itia.cnr.it
@@ -14,23 +14,25 @@ TYPE
 		$LIN_SPD
 		digital_out : INTEGER
 		sequence_num : INTEGER
+		fly_tol : REAL
 	ENDNODEDEF  
 	
 	ROS_message_header = RECORD --EXPORTED FROM ROS_COMAU_trajectory
-		length : INTEGER												-- Length of the message (header + data) in bytes
+		length : INTEGER												-- Length of the message (header + data) in bytes (without the length field)
 		msg_type : INTEGER											-- INVALID=0; PING=1; ....
 		comm_type : INTEGER											-- INVALID=0; TOPIC=1; SERVICE_REQUEST=2; SERVICE_REPLY=3;
 		reply_code : INTEGER										-- INVALID=0; SUCCESS=1; FAILURE=2;
 	ENDRECORD
 	
 	ROS_comau_joint_trj_pnt = RECORD
-	  length : INTEGER												-- Length of the message (header + data) in bytes
+	  length : INTEGER												-- Length of the message (header + data) in bytes (without the length field)
 		msg_type : INTEGER											-- INVALID=0; PING=1; ....
 		comm_type : INTEGER											-- INVALID=0; TOPIC=1; SERVICE_REQUEST=2; SERVICE_REPLY=3;
 		reply_code : INTEGER										-- INVALID=0; SUCCESS=1; FAILURE=2;
 		arm_number : INTEGER										-- INVALID=0; ARM_1=1; ARM_2=2; ARM_1e2=12;
 		queue_status : INTEGER									-- INVALID=0; READY=1; BUSY=2; ERROR=3;
 		sequence_number : INTEGER								-- Sequence number of the point in the trajectory
+		fly_tolerance : REAL									-- Tolerance of the MOVEFLY motion (in mm)
 		digital_output : INTEGER								-- Integer representation of the binary array of digital outputs (DOUT[0] is the LSB)
 		linear_vel : REAL												-- $LIN_SPD (in m/s) 
 		joint_positions: ARRAY[10] OF REAL      -- Joint positions (in deg). 
@@ -155,6 +157,7 @@ BEGIN
 				NODE_DEL(traj_arm1, 1, PATH_LEN(traj_arm1) )
 				trj_complete := TRUE
 				override_trj := FALSE	
+				busy_queue := FALSE
 				SIGNAL sem_queue --
 			ELSE
 				WRITE LUN_CRT (NL, 'Cancel motion command ignored. The robot is not moving!', NL)
@@ -188,7 +191,7 @@ BEGIN
 	pnt.comm_type := header.comm_type
 	pnt.reply_code := header.reply_code
 
-  READ lun_tcp_trj(pnt.arm_number::4, pnt.queue_status::4, pnt.sequence_number::4, pnt.linear_vel::4)
+  READ lun_tcp_trj(pnt.arm_number::4, pnt.queue_status::4, pnt.sequence_number::4, pnt.fly_tolerance::4, pnt.linear_vel::4)
   --WRITE LUN_CRT ( "Arm: ", pnt.arm_number, NL)
   --WRITE LUN_CRT ( "Queue: ", pnt.queue_status, NL)
   --WRITE LUN_CRT ( "Seq: ", pnt.sequence_number, NL)
@@ -218,21 +221,32 @@ BEGIN
 					WRITE LUN_TP (NL, '[ROS_COMAU_trajectory / comau_joint_trj_pnt_decode()] Invalid arm number.', NL)
 					WRITE LUN_CRT (NL, '[ROS_COMAU_trajectory / comau_joint_trj_pnt_decode()] Invalid arm number.', NL)
 				ELSE
-					IF ( idx_queue1 > 0 ) THEN
-						IF ( (traj_arm1.NODE[idx_queue1].sequence_num+1 <> pnt.sequence_number) AND (trj_complete = FALSE) ) THEN					----------
-							-- messaggio: il punto inserito non è successivo al punto precedente
-							WRITE LUN_TP (NL, '[ROS_COMAU_trajectory / comau_joint_trj_pnt_decode()] The last received point is not subsequent to the previous one.', NL)
-							WRITE LUN_CRT (NL, '[ROS_COMAU_trajectory / comau_joint_trj_pnt_decode()] The last received point is not subsequent to the previous one.', NL)
-							check := 3
+					WAIT sem_queue
+					IF (idx_queue1 > PATH_LEN(traj_arm1)) THEN
+						SIGNAL sem_queue
+						WRITE LUN_TP (NL, '[ROS_COMAU_trajectory / comau_joint_trj_pnt_decode()] The idx_queue1 index exceeded the path length.', NL)
+						WRITE LUN_CRT (NL, '[ROS_COMAU_trajectory / comau_joint_trj_pnt_decode()] The idx_queue1 index exceeded the path length.', NL)
+						check := 3
+					ELSE
+						IF ( idx_queue1 > 0 ) THEN
+							IF ( (traj_arm1.NODE[idx_queue1].sequence_num+1 <> pnt.sequence_number) AND (trj_complete = FALSE) ) THEN					----------
+								SIGNAL sem_queue
+								-- messaggio: il punto inserito non è successivo al punto precedente
+								WRITE LUN_TP (NL, '[ROS_COMAU_trajectory / comau_joint_trj_pnt_decode()] The last received point is not subsequent to the previous one.', NL)
+								WRITE LUN_CRT (NL, '[ROS_COMAU_trajectory / comau_joint_trj_pnt_decode()] The last received point is not subsequent to the previous one.', NL)
+								check := 3
+							ELSE
+								SIGNAL sem_queue
+								tmp_trj_pnt := pnt
+								add_point_to_trj( (pnt) )
+								check := 1
+							ENDIF
 						ELSE
+							SIGNAL sem_queue
 							tmp_trj_pnt := pnt
 							add_point_to_trj( (pnt) )
 							check := 1
 						ENDIF
-					ELSE
-						tmp_trj_pnt := pnt
-						add_point_to_trj( (pnt) )
-						check := 1
 					ENDIF
 				ENDIF
 			ENDIF
@@ -251,10 +265,10 @@ BEGIN
 	IF (trj_complete=TRUE) THEN
 		trj_complete := FALSE
 		IF (tmp_trj_pnt.sequence_number<2) THEN
-			IF (move_rob=TRUE) THEN
+			IF (is_moving=TRUE) THEN
 				stop_motion
 			ENDIF
-			WRITE LUN_CRT('Cleaning index before writing new trajectory',NL)
+			WRITE LUN_CRT('Cleaning indexes before writing new trajectory',NL)
 			idx_queue1 := 0 
 			idx_motion1 := 1   
 			new_trj := TRUE
@@ -281,6 +295,7 @@ BEGIN
 	traj_arm1.NODE[idx_queue1].$LIN_SPD := tmp_trj_pnt.linear_vel
 	traj_arm1.NODE[idx_queue1].sequence_num := tmp_trj_pnt.sequence_number
 	traj_arm1.NODE[idx_queue1].digital_out := tmp_trj_pnt.digital_output
+	traj_arm1.NODE[idx_queue1].fly_tol := tmp_trj_pnt.fly_tolerance
 
 	-- WRITE LUN_CRT('Added point: ',traj_arm1.NODE[idx_queue1].sequence_num,' With idx_queue1: ',idx_queue1,' and idx_motion1: ',idx_motion1,NL)
 	-- WRITE LUN_TP (NL, '[ROS_COMAU_trajectory / add_point_to_trj()] Point ', idx_queue1, ' has been added to the trajectory.', NL)
@@ -300,7 +315,7 @@ ROUTINE comau_joint_trj_pnt_res_encode(pt : ROS_comau_joint_trj_pnt; check : INT
 VAR
 	res_pt : ROS_comau_joint_trj_pnt
 BEGIN
-	res_pt.length := 72 -- tmp_trj_pnt.length
+	res_pt.length := 76 -- tmp_trj_pnt.length
 	res_pt.msg_type := tmp_trj_pnt.msg_type
 	res_pt.comm_type := 3
 	IF check=1 THEN
@@ -319,6 +334,7 @@ BEGIN
 		ENDIF
 	ENDIF
 	res_pt.sequence_number := tmp_trj_pnt.sequence_number
+	res_pt.fly_tolerance := tmp_trj_pnt.fly_tolerance
 	res_pt.linear_vel := tmp_trj_pnt.linear_vel
 	res_pt.joint_positions := tmp_trj_pnt.joint_positions
 	res_pt.digital_output := tmp_trj_pnt.digital_output
@@ -331,7 +347,7 @@ ROUTINE generic_msg_decode(header : ROS_message_header; is_valid : BOOLEAN)
 VAR
 	pnt : ROS_comau_joint_trj_pnt
 BEGIN
-	READ lun_tcp_trj(pnt.arm_number::4, pnt.queue_status::4, pnt.sequence_number::4, pnt.linear_vel::4)
+	READ lun_tcp_trj(pnt.arm_number::4, pnt.queue_status::4, pnt.sequence_number::4, pnt.fly_tolerance::4, pnt.linear_vel::4)
 	FOR i:=1 TO 10 DO
 		READ lun_tcp_trj(pnt.joint_positions[i]::4)
 	ENDFOR
@@ -357,7 +373,7 @@ ROUTINE generic_reply_msg_encode(header : ROS_message_header; is_valid : BOOLEAN
 VAR
 	res_pt : ROS_comau_joint_trj_pnt
 BEGIN
-	res_pt.length := 72
+	res_pt.length := 76
 	res_pt.msg_type := header.msg_type
 	res_pt.comm_type := 3
 	
@@ -379,11 +395,13 @@ BEGIN
 	ENDIF
 	IF ( (is_valid=TRUE) AND (header.msg_type<>1) ) THEN
 		res_pt.sequence_number := traj_arm1.NODE[idx_queue1].sequence_num				--------
+		res_pt.fly_tolerance := traj_arm1.NODE[idx_queue1].fly_tol 
 		res_pt.linear_vel := tmp_trj_pnt.linear_vel
 		res_pt.joint_positions := tmp_trj_pnt.joint_positions
 		res_pt.digital_output := traj_arm1.NODE[idx_queue1].digital_out					--------
 	ELSE
 		res_pt.sequence_number := 0
+		res_pt.fly_tolerance := 0.0
 		res_pt.linear_vel := 0.0
 		FOR i:=1 TO 10 DO
 			res_pt.joint_positions[i] := 0.0
@@ -402,8 +420,7 @@ END generic_reply_msg_encode
 --------------	
 	
 BEGIN
-	DIR_SET('UD:\\usr\\Flexicast\\ROSi_driver');   -- Set working directory
-	SYS_CALL('ML' ,'ROS_COMAU_tcp_utils');        -- Memory Load
+	-- SYS_CALL('ML' ,'ROS_COMAU_tcp_utils');        -- Memory Load
 	
 	WRITE LUN_CRT (NL, 'Starting...', NL)
 
@@ -457,7 +474,7 @@ BEGIN
 
 		WRITE lun_tcp_trj(tmp_trj_pnt.length,tmp_trj_pnt.msg_type,tmp_trj_pnt.comm_type,tmp_trj_pnt.reply_code,tmp_trj_pnt.arm_number,tmp_trj_pnt.queue_status,tmp_trj_pnt.sequence_number)
 
-		WRITE lun_tcp_trj(tmp_trj_pnt.linear_vel)
+		WRITE lun_tcp_trj(tmp_trj_pnt.fly_tolerance,tmp_trj_pnt.linear_vel)
 
 		FOR i:=1 TO 10 DO
 		  WRITE lun_tcp_trj(tmp_trj_pnt.joint_positions[i])

@@ -25,6 +25,11 @@ The following table lists the libraries and nodes provided by the package.
 | `comau_motion_feedback_node` | It handles the robot feedback and the trajectory execution status |
 
 
+| Actions | Type | Description | 
+|:--- | :----  | :------------------ | 
+| `/joint_trajectory_action` | control_msgs::FollowJointTrajectory | Standard action. Used to load a standardized trajectory and send it to the robot controller |
+| `/comau_joint_trajectory_action` | comau_msgs::ComauJointTrajectory | Customized action. Used to load a full description trajectory and send it to the robot controller |
+
 | Services | Type | Description | 
 |:--- | :----  | :------------------ | 
 | `/start_motion` | industrial_msgs::StartMotion | Send to the robot the start motion command. It trigger the start of a new trajectory, or a previous stopped trajectory |
@@ -99,6 +104,12 @@ A example of usage of the ROS-I Comau driver is in `comau_driver/test`.
 The trajectory used in the example is defined in the config file `comau_driver/test/example_trj.yaml` that has to be load in the parameter server 
 *before* running the code.  
 
+**Usage**:  
+`rosparam load comau_driver/test/example_trj.yaml`  
+`rosrun comau_driver comau_action_client_trj_test`  
+or  
+`rosrun comau_driver standard_action_client_trj_test`  
+
 **WARNING!**   
 - The example trajectory is made for a Comanu NS16-Hand robot with a free workspace!   
   Change the joint positions if you have a different robot or some constraints on robot movements.   
@@ -117,6 +128,3 @@ The trajectory used in the example is defined in the config file `comau_driver/t
 
 - To stop the motion call the service `stop_motion` manually in the command shell.  
   `rosservice call /stop_motion {} `  
-
-**Note:**  
-> A bridge node to convert comau_msgs::ComauJointTrajectoryAction into control_msgs::FollowJointTrajectoryAction will be ready soon. 
