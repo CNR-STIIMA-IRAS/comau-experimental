@@ -12,8 +12,8 @@
 <launch>
 
   <arg name="robot_ip" />
-  <arg name="joint_names_config_file" default="$(find comau_ns16arc_support)/config/joint_names_comau_nj220foundry.yaml" />
-  <arg name="xacro_file_name"         default="$(find comau_ns16arc_support)/urdf/comau_nj220foundry.xacro" />
+  <arg name="joint_names_config_file" default="$(find comau_nj220foundry_support)/config/joint_names_comau_nj220foundry.yaml" />
+  <arg name="xacro_file_name"         default="$(find comau_nj220foundry_support)/urdf/comau_nj220foundry.xacro" />
   <arg name="only_monitoring"         default="false" />
   
   <include file="$(find comau_robot_support_common)/launch/comau_robot_driver_and_rviz.launch">
