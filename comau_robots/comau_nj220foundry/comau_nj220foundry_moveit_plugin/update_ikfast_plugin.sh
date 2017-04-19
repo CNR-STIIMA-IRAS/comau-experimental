@@ -1,0 +1,1 @@
+rosrun moveit_kinematics create_ikfast_moveit_plugin.py comau_nj220foundry manipulator comau_nj220foundry_moveit_plugin /home/debroglie/ros_ws/src/comau-experimental/comau_robots/comau_nj220foundry/comau_nj220foundry_moveit_plugin/src/comau_nj220foundry_manipulator_ikfast_solver.cpp
