@@ -10,5 +10,5 @@ developed by the Institute of Industrial Technologies and Automation, of the Nat
 
 ## Installation
 
-Clone the repository into your catkin working directory and make it with ```catkin_make```.   
+Clone the repository into your catkin working directory and make it with ```catkin build```.   
 **Note:**  The ROS-I package is needed.

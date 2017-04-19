@@ -56,10 +56,10 @@ In the case the ROS nodes are used just to get the robot feedback, the procedure
 
 ## Installation and ROS-Version 
 
-This package contains the implementation of the ROS-Industrial standard for Comau robots, developed using the ROS Jade 
-(also tested on ROS Kinetic) distribution. 
+This package contains the implementation of the ROS-Industrial standard for Comau robots, developed using the ROS Kinetic 
+(also tested on ROS Jade except the moveit_plugin not supported in Jade) distribution. 
 
-Clone the repository into your catkin working directory and make it with ```catkin_make```. 
+Clone the repository into your catkin working directory and make it with ```catkin build```. 
 
 **Note:**  
 
@@ -69,10 +69,10 @@ Clone the repository into your catkin working directory and make it with ```catk
 ## Developer Contact
 
 **Authors:**   
-- Alberto Marini (alberto.marini@itia.cnr.it)  
 - Enrico Villagrossi (enrico.villagrossi@itia.cnr.it)  
 - Manuel Beschi (manuel.beschi@itia.cnr.it)  
 - Nicola Pedrocchi (nicola.pedrocchi@itia.cnr.it)  
+- Alberto Marini (alberto.marini@unibs.it)  
  
 _Software License Agreement (BSD License)_    
 _Copyright (c) 2016, National Research Council of Italy, Institute of Industrial Technologies and Automation_    
