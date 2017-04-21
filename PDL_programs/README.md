@@ -7,6 +7,7 @@ At this time just the Single_Arm package is present, but a Dual_Arm handling pac
 on a C4G machine, some modifications are needed.  
 
 **Warning:**  
+- To run all the PDL functionalities it is require the ''socket comunication'' software option installed on the robot controller. 
 - It is needed to run the PDL programs before starting the ROS nodes.  
 - When ROS nodes are interrupted roughly, the communication to the controller is lost and an error will appear. Before the ROS nodes restart, reset the error, deactivate and activate 
   again all the PDL programs in order to restart the TCP/IP channels.  
