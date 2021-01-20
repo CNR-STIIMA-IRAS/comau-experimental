@@ -52,10 +52,10 @@ The data structure is based on the standard ROS-I `RobotStatus.msg` message.
 ## Developer Contact
 
 **Authors:**   
-- Enrico Villagrossi (enrico.villagrossi@itia.cnr.it)  
-- Manuel Beschi (manuel.beschi@itia.cnr.it)  
-- Nicola Pedrocchi (nicola.pedrocchi@itia.cnr.it)  
-- Alberto Marini (alberto.marini@unibs.it)  
+- Enrico Villagrossi (enrico.villagrossi@stiima.cnr.it)  
+- Manuel Beschi (manuel.beschi@unibs.it)  
+- Nicola Pedrocchi (nicola.pedrocchi@stiima.cnr.it)  
+- Alberto Marini 
  
 _Software License Agreement (BSD License)_  
 _Copyright (c) 2016, National Research Council of Italy, Institute of Industrial Technologies and Automation_  
