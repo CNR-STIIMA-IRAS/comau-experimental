@@ -74,8 +74,9 @@
   #include <kdl/chainiksolvervel_pinv.hpp>
   #include <kdl/chainiksolverpos_nr_jl.hpp>
   #include <kdl/chainfksolverpos_recursive.hpp>
-  #include <moveit/kdl_kinematics_plugin/chainiksolver_pos_nr_jl_mimic.hpp>
-  #include <moveit/kdl_kinematics_plugin/chainiksolver_vel_pinv_mimic.hpp>
+  // 2021.08.02 Enrico patch
+  //#include <moveit/kdl_kinematics_plugin/chainiksolver_pos_nr_jl_mimic.hpp>
+  //#include <moveit/kdl_kinematics_plugin/chainiksolver_vel_pinv_mimic.hpp>
   #include <moveit/kdl_kinematics_plugin/joint_mimic.hpp>
   #include <kdl_parser/kdl_parser.hpp>
   #include <kdl/frames_io.hpp>
@@ -473,12 +474,19 @@ bool IKFastKinematicsPlugin::initialize(const std::string& robot_description, co
 
   ROS_DEBUG_STREAM_NAMED("ikfast", "Reading joints and links from URDF");
 
-  urdf::LinkSharedPtr link = boost::const_pointer_cast<urdf::Link>(robot_model.getLink(getTipFrame()));
+  // 2021.08.02 Enrico patch
+  //urdf::LinkSharedPtr link = boost::const_pointer_cast<urdf::Link>(robot_model.getLink(getTipFrame()));
+  std::shared_ptr<urdf::Link> link = std::const_pointer_cast<urdf::Link>(robot_model.getLink(getTipFrame()));
+
   while (link->name != base_frame_ && joint_names_.size() <= num_joints_)
   {
     ROS_DEBUG_NAMED("ikfast", "Link %s", link->name.c_str());
     link_names_.push_back(link->name);
-    urdf::JointSharedPtr joint = link->parent_joint;
+
+    // 2021.08.02 Enrico patch
+    //urdf::JointSharedPtr joint = link->parent_joint;
+    std::shared_ptr<urdf::Joint> joint = link->parent_joint;
+
     if (joint)
     {
       if (joint->type != urdf::Joint::UNKNOWN && joint->type != urdf::Joint::FIXED)
@@ -549,8 +557,11 @@ bool IKFastKinematicsPlugin::initialize(const std::string& robot_description, co
   
 #if ITIA_CNR_PATCH
   rdf_loader::RDFLoader rdf_loader(robot_description_);
-  const boost::shared_ptr<srdf::Model> &srdf = rdf_loader.getSRDF();
-  const boost::shared_ptr<urdf::ModelInterface>& urdf_model = rdf_loader.getURDF();
+  // 2021.08.02 Enrico patch
+  // const boost::shared_ptr<srdf::Model> &srdf = rdf_loader.getSRDF();
+  // const boost::shared_ptr<urdf::ModelInterface>& urdf_model = rdf_loader.getURDF();
+  const std::shared_ptr<srdf::Model> &srdf = rdf_loader.getSRDF();
+  const std::shared_ptr<urdf::ModelInterface>& urdf_model = rdf_loader.getURDF();
   
   if (!urdf_model || !srdf)
   {
